@@ -23,20 +23,64 @@
 # OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
 # OF THE POSSIBILITY OF SUCH DAMAGE.
 
+import json, random
+from twisted.internet.protocol import Protocol
+
 class Static(Protocol):
-    def sendHeaders(headers = {}):
+    def __init__(self,parent):
+        self.parent = parent
+    def makeConnection(self, transport):
+        Protocol.makeConnection(self, transport)
+        self.send()
+    def validateMethod(self):
+        for method in self.allowedMethods:
+            if self.parent.method == method:
+                return True
+        return False
+    def send(self):
+        if not self.validateMethod():
+            h = {
+                'status': '405 Method Not Supported',
+                'allow': 'True??'
+            }
+            self.sendHeaders(h)
+            self.transport.loseConnection()
+            return False
+        return True
+    def sendHeaders(self, headers = {}):
+        if 'Origin' in self.parent.headers and self.parent.headers['Origin'] != 'null':
+            origin = self.parent.headers['origin']
+        else:
+            origin = '*'
         h = {
             'status': '200 OK',
-            'Cache-Control': 'public, max-age=31536000',
-            'access-control-max-age': '31536000',
-            'Access-Control-Allow-Methods': ???,
-            'access-control-allow-origin': origin ? origin : '*',
+            'access-control-allow-origin': origin,
             'access-control-allow-credentials': 'true'
         }
+        if self.parent.method == 'OPTIONS':
+            h.update({
+                'status': '204 No Body',
+                'Cache-Control': 'public, max-age=31536000',
+                'access-control-max-age': '31536000',
+                'Access-Control-Allow-Methods': ', '.join(self.allowedMethods)
+            })
         h.update(headers)
+        headers = ""
+        if 'status' in h:
+            headers += "HTTP/1.1 %s\r\n" % h['status']
+            del h['status']
+        for k, v in h.iteritems():
+            headers += "%s: %s\r\n" % (k, v)
+        self.transport.write(headers + "\r\n")
+    def sendBody(self, body):
+        self.transport.write(body)
+        self.transport.loseConnection()
         
 class Greeting(Static):
+    allowedMethods = ['GET']
     def send(self):
+        if not Static.send(self):
+            return
         h = {
             'content-type': 'text/plain; charset=UTF-8',
         }
@@ -44,18 +88,37 @@ class Greeting(Static):
         self.sendBody("Welcome to SockJS!\n")
 
 class Info(Static):
+    allowedMethods = ['OPTIONS','GET']
     def send(self):
+        if not Static.send(self):
+            return
         h = {
-            'content-type': 'text/plain; charset=UTF-8',
+            'content-type': 'application/json; charset=UTF-8',
+            'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0',
+        }
+        b = {
+            'websocket': self.parent.factory.options['websocket'],
+            'cookie_needed': self.parent.factory.options['cookie_needed'],
+            'origins': ['*:*'],
+            'entropy': random.randint(0,2**32-1)
         }
         self.sendHeaders(h)
-        self.sendBody()
+        self.sendBody(json.dumps(b))
 
 class IFrame(Static):
+    allowedMethods = ['GET']
+    etag = '00000000-0000-0000-0000-000000000000'
     def send(self):
+        if not Static.send(self):
+            return
+        if 'If-None-Match' in self.parent.headers and self.parent.headers['If-None-Match'].find(self.etag) >= 0: #Could result in false positives
+            h = {'status': '304 Not Modified'}
+            self.sendHeaders(h)
+            return
         h = {
+            'Cache-Control': 'public, max-age=31536000',
             'Expires': 'January 1st, 3000',
-            'ETag': '00000000-0000-0000-0000-000000000000',
+            'ETag': self.etag,
             'content-type': 'text/html; charset=UTF-8',
         }
         self.sendHeaders(h)
@@ -69,11 +132,19 @@ class IFrame(Static):
     document.domain = document.domain;
     _sockjs_onload = function(){SockJS.bootstrap_iframe();};
   </script>
-  <script src="/sockjs.js"></script>
+  <script src="https://d1fxtkz8shb9d2.cloudfront.net/sockjs-0.3.js"></script>
 </head>
 <body>
   <h2>Don't panic!</h2>
   <p>This is a SockJS hidden iframe. It's used for cross domain magic.</p>
 </body>
-</html
+</html>
         ''')
+
+class Error404(Static):
+    def send(self):
+        h = {
+            'status': '404 Not Found',
+        }
+        self.sendHeaders(h)
+        self.transport.loseConnection()

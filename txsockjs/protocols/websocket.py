@@ -23,49 +23,7 @@
 # OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
 # OF THE POSSIBILITY OF SUCH DAMAGE.
 
-from twisted.protocols.policies import WrappingFactory
-from twisted.internet.protocol import ClientFactory
-from txsockjs.negotiator import SockJSNegotiator
-from txsockjs.constants import reservedPrefixes
+from txsockjs.protocols.base import SessionProtocol
 
-class SockJSFactory(WrappingFactory):
-    options = {
-        'websocket': True,
-        'cookie_needed': False,
-        'heartbeat': 25,
-        'timeout': 5
-    }
-    sessions = {}
-    protocol = SockJSNegotiator
-    def __init__(self, factory, options = None):
-        if options is not None:
-            self.options.update(options)
-        self.wrappedFactory = factory
-    def buildProtocol(self, addr):
-        return self.protocol(self, addr)
-    def registerProtocol(self, p):
-        self.sessions[p.session] = p
-    def unregisterProtocol(self, p):
-        del self.sessions[p.session]
-    def resolvePrefix(self, prefix):
-        return self
-
-class SockJSMultiFactory(ClientFactory):
-    routes = {}
-    protocol = SockJSNegotiator
-    def doStop(self):
-        for factory in routes.itervalues():
-            factory.doStop()
-        ClientFactory.doStop(self)
-    def buildProtocol(self, addr):
-        return self.protocol(self, addr)
-    def addFactory(self, factory, prefix, options = None):
-        prefix = prefix.strip().strip("/")
-        for p in reservedPrefixes:
-            if p.match(prefix):
-                raise ValueError()
-        routes[prefix] = SockJSFactory(factory, options)
-    def resolvePrefix(self, prefix):
-        if prefix in self.routes:
-            return self.routes[prefix]
-        return None
+class WebSocket(SessionProtocol):
+    pass

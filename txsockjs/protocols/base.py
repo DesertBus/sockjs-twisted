@@ -23,49 +23,38 @@
 # OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
 # OF THE POSSIBILITY OF SUCH DAMAGE.
 
-from twisted.protocols.policies import WrappingFactory
-from twisted.internet.protocol import ClientFactory
-from txsockjs.negotiator import SockJSNegotiator
-from txsockjs.constants import reservedPrefixes
+from zope.interface import directlyProvides, providedBy
+from twisted.internet.protocol import Protocol
+from twisted.protocols.policies import ProtocolWrapper
 
-class SockJSFactory(WrappingFactory):
-    options = {
-        'websocket': True,
-        'cookie_needed': False,
-        'heartbeat': 25,
-        'timeout': 5
-    }
-    sessions = {}
-    protocol = SockJSNegotiator
-    def __init__(self, factory, options = None):
-        if options is not None:
-            self.options.update(options)
-        self.wrappedFactory = factory
-    def buildProtocol(self, addr):
-        return self.protocol(self, addr)
-    def registerProtocol(self, p):
-        self.sessions[p.session] = p
-    def unregisterProtocol(self, p):
-        del self.sessions[p.session]
-    def resolvePrefix(self, prefix):
-        return self
-
-class SockJSMultiFactory(ClientFactory):
-    routes = {}
-    protocol = SockJSNegotiator
-    def doStop(self):
-        for factory in routes.itervalues():
-            factory.doStop()
-        ClientFactory.doStop(self)
-    def buildProtocol(self, addr):
-        return self.protocol(self, addr)
-    def addFactory(self, factory, prefix, options = None):
-        prefix = prefix.strip().strip("/")
-        for p in reservedPrefixes:
-            if p.match(prefix):
-                raise ValueError()
-        routes[prefix] = SockJSFactory(factory, options)
-    def resolvePrefix(self, prefix):
-        if prefix in self.routes:
-            return self.routes[prefix]
-        return None
+class SessionProtocol(ProtocolWrapper):
+    def __init__(self, parent):
+        self.method = parent.method
+        self.headers = parent.headers
+        self.session = parent.session
+        self.location = parent.location
+        self.factory = parent.factory
+        self.transport = parent
+        self.wrappedProtocol = None
+    def connect(self):
+        print("Connect dis bitch")
+        self.wrappedProtocol = self.factory.wrappedFactory.buildProtocol(self.transport.addr)
+    def makeConnection(self, transport):
+        directlyProvides(self, providedBy(transport))
+        Protocol.makeConnection(self, transport)
+        self.factory.registerProtocol(self)
+        if self.wrappedProtocol:
+            self.wrappedProtocol.makeConnection(self)
+        else:
+            print("No wrappedProtocol, attempting disconnect")
+            self.loseConnection()
+    def relayData(self, data):
+        self.wrappedProtocol.dataReceived(data)
+    def sendHeaders(self, headers):
+        h = ""
+        if 'status' in headers:
+            h += "HTTP/1.1 %s\r\n" % headers['status']
+            del headers['status']
+        for k, v in headers.iteritems():
+            h += "%s: %s\r\n" % (k, v)
+        self.transport.write(h + "\r\n")

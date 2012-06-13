@@ -24,52 +24,56 @@
 # OF THE POSSIBILITY OF SUCH DAMAGE.
 
 from txsockjs.constants import methods
+import re
 
 def httpHeaders(headers):
-    pass
+    """
+    Create a dictionary of data from raw HTTP headers.
+    """
+    d = {}
+    for line in headers.split("\r\n"):
+        try:
+            key, value = [i.strip() for i in line.split(":", 1)]
+            d[key] = value
+        except ValueError:
+            pass
+    return d
 
-def parsePath(path):
+def parsePath(path,checker):
     prefix = ""
     session = None
     loadbalance = None
     method = None
     
-    parts = path.strip().strip("/").split("/")
-    if parts:
-        method = parts.pop().lowercase()
+    match = re.match('/?(.*?)/(|info|iframe[0-9-a-z._-]*\.html|websocket|[^./]+/[^./]+/(websocket|xhr|xhr_send|xhr_streaming|eventsource|htmlfile|jsonp|jsonp_send))$',path)
+    if match is None:
+        return (prefix, session, methods['ERROR404'])
+    prefix = match.group(1)
+    suffix = match.group(2)
+    if suffix.find('/') >= 0:
+        loadbalance, session, method = suffix.split('/',2)
+    else:
+        method = suffix
     
-    if len(parts) > 1 and re.match("[\d]{3}$",parts[-2]):
-        session = parts.pop()
-        loadbalance = parts.pop()
-        prefix = "/".join(parts)
-        if method == "websocket":
-            method = methods.WEBSOCKET
-        elif method == "xhr":
-            method = methods.XHR
-        elif method == "xhr_send":
-            method = methods.XHR_SEND
-        elif method == "xhr_streaming":
-            method = methods.XHR_STREAM
-        elif method == "eventsource":
-            method = methods.EVENTSOURCE
-        elif method == "htmlfile":
-            method = methods.HTMLFILE
-        elif method == "jsonp":
-            method = methods.JSONP
-        elif method == "jsonp_send":
-            method = methods.JSONP_SEND
+    # Since websocket is both a root level and session level command, we have to ensure we split it properly
+    if method == "websocket":
+        if checker(prefix) is None:
+            prefix += '/' + loadbalance + '/' + session
+            loadbalance = session = None
+    
+    if session:
+        if method in methods:
+            method = methods[method]
         else:
-            raise ValueError()
+            method = methods['ERROR404']
     else:
         if method == "info":
-            method = methods.INFO
-        elif re.match(method,"iframe[0-9-\.a-z_]*.html$"):
-            method = methods.IFRAME
+            method = methods['INFO']
+        elif re.match("iframe[0-9-\.a-z_]*\.html$",method):
+            method = methods['IFRAME']
         elif method == "websocket":
-            method = methods.RAWWEBSOCKET
+            method = methods['RAWWEBSOCKET']
         else:
-            parts.append(method)
-            method = methods.GREETING
-        prefix = "/".join(parts)
+            method = methods['GREETING']
     
     return (prefix, session, method)

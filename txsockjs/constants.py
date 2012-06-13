@@ -24,27 +24,30 @@
 # OF THE POSSIBILITY OF SUCH DAMAGE.
 
 import re
-from txsockjs.protocols import *
+from txsockjs.protocols.static import Greeting, Info, IFrame, Error404
+from txsockjs.protocols.rawwebsocket import RawWebSocket
+from txsockjs.protocols.websocket import WebSocket
+from txsockjs.protocols.xhr import XHR, XHRSend, XHRStream
+from txsockjs.protocols.eventsource import EventSource
+from txsockjs.protocols.htmlfile import HTMLFile
+from txsockjs.protocols.jsonp import JSONP, JSONPSend
 
-states = {
-    REQUEST: 1,
-    NEGOTIATING: 2,
-    ROUTED: 3
-}
 
 methods = {
-    GREETING: static.Greeting,
-    INFO: static.Info,
-    IFRAME: static.IFrame,
-    RAWWEBSOCKET: rawwebsocket.RawWebSocket,
-    WEBSOCKET: websocket.WebSocket,
-    XHR: xhr.XHR,
-    XHR_SEND: xhr.XHRSend,
-    XHR_STREAM: xhr.XHRStream,
-    EVENTSOURCE: eventsource.EventSource,
-    HTMLFILE: htmlfile.HTMLFile,
-    JSONP: jsonp.JSONP,
-    JSONP_SEND: jsonp.JSONPSend
+    'GREETING': Greeting,
+    'INFO': Info,
+    'IFRAME': IFrame,
+    'RAWWEBSOCKET': RawWebSocket,
+    'websocket': WebSocket,
+    'xhr': XHR,
+    'xhr_send': XHRSend,
+    'xhr_streaming': XHRStream,
+    'eventsource': EventSource,
+    'htmlfile': HTMLFile,
+    'jsonp': JSONP,
+    'jsonp_send': JSONPSend,
+    
+    'ERROR404': Error404
 }
 
 reservedPrefixes = [

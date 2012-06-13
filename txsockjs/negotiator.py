@@ -23,48 +23,76 @@
 # OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
 # OF THE POSSIBILITY OF SUCH DAMAGE.
 
+from zope.interface import directlyProvides, providedBy
 from twisted.internet.protocol import Protocol
-from txsockjs.constants import states, methods
-from txsockjs.protocols import *
+from twisted.protocols.policies import ProtocolWrapper
+#from twisted.python import log
+from txsockjs.constants import methods
 from txsockjs import utils
+
+REQUEST, NEGOTIATING, ROUTED = range(3)
 
 class SockJSNegotiator(ProtocolWrapper):
     buf = ""
-    state = states.REQUEST
+    state = REQUEST
+    method = None
     headers = None
+    session = None
     location = None
     factory = None
     wrappedProtocol = None
+    addr = None
     
-    def __init__(self, factory):
+    def __init__(self, factory, addr):
         ProtocolWrapper.__init__(self,factory,None)
-    def dataRecieved(self, data):
+        self.addr = addr
+        print("Negotiator Started")
+    def makeConnection(self, transport):
+        directlyProvides(self, providedBy(transport))
+        Protocol.makeConnection(self, transport)
+    def dataReceived(self, data):
+        #print("Negotiator recieved data - %s" % data)
+        if self.state == ROUTED:
+            return self.wrappedProtocol.dataReceived(data)
         self.buf += data
         oldstate = None
         while oldstate != self.state:
             oldstate = self.state
-            if self.state == states.REQUEST:
+            if self.state == REQUEST:
                 if "\r\n" in self.buf:
                     request, chaff, self.buf = self.buf.partition("\r\n")
                     try:
-                        verb, self.location, version = request.split(" ")
+                        self.method, self.location, version = request.split(" ")
                     except ValueError:
+                        print("Could not determine location, closing connection")
                         self.loseConnection()
                     else:
-                        self.state = states.NEGOTIATING
-            elif: self.state == states.NEGOTIATING:
+                        print("Negotiator entered NEGOTIATING state")
+                        self.state = NEGOTIATING
+            elif self.state == NEGOTIATING:
                 if "\r\n\r\n" in self.buf:
-                    head, chaff, self.buf = self.buf.partition("\r\n")
+                    head, chaff, self.buf = self.buf.partition("\r\n\r\n")
                     self.headers = utils.httpHeaders(head)
                     self.negotiate()
-            elif self.state == states.ROUTED:
-                self.wrappedProtocol.dataRecieved(self.buf)
+            elif self.state == ROUTED:
+                self.wrappedProtocol.dataReceived(self.buf)
                 self.buf = ""
+    def connectionLost(self, reason):
+        print("Negotiator lost connection - %s" % reason)
+        if self.wrappedProtocol:
+            self.wrappedProtocol.connectionLost(reason)
+    def __getattr__(self, name):
+        print("Negotiator __getattr__ %s" % name)
+        return getattr(self.transport, name)
     def negotiate(self):
-        prefix, session, method = utils.parsePath(self.location)
+        prefix, self.session, method = utils.parsePath(self.location,self.factory.resolvePrefix)
         self.factory = self.factory.resolvePrefix(prefix)
         if self.factory is None:
-            self.loseConnection()
-            return
+            method = methods['ERROR404']
+        print("Negotiator location is %s" % self.location)
+        print("Negotiator factory is %s" % self.factory.__class__.__name__)
+        print("Negotiator protocol is %s" % method.__name__)
         self.wrappedProtocol = method(self)
-            
+        self.wrappedProtocol.makeConnection(self)
+        self.state = ROUTED
+        print("Negotiator entered ROUTED state")
