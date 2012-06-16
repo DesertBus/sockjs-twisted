@@ -39,7 +39,7 @@ class JSONP(SessionProtocol):
             return True
         self.sendHeaders()
     def write(self, data):
-        packet = "callback(\"%s\");\r\n" % quote(data)
+        packet = "%s(\"%s\");\r\n" % (self.query['c'][0], quote(data))
         SessionProtocol.write(self, packet)
     def writeSequence(self, data):
         for d in data:

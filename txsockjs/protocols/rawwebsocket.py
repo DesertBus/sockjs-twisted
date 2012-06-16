@@ -179,8 +179,7 @@ class RawWebSocket(ProtocolWrapper):
             'Server': 'SockJSTwisted/1.0',
             'Date': datetimeToString(),
             'Upgrade': 'WebSocket',
-            'Connection': 'Upgrade',
-            'transfer-encoding': 'chunked'
+            'Connection': 'Upgrade'
         }
         h.update(headers)
         headers = ""

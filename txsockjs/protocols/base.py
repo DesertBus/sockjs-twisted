@@ -26,7 +26,7 @@
 from zope.interface import directlyProvides, providedBy
 from twisted.internet.protocol import Protocol
 from twisted.protocols.policies import ProtocolWrapper
-import json
+import json, Cookie
 
 class SessionProtocol(ProtocolWrapper):
     allowedMethods = ['OPTIONS']
@@ -55,7 +55,7 @@ class SessionProtocol(ProtocolWrapper):
             return
         elif self.method == 'OPTIONS':
             self.sendHeaders()
-            self.transport.write("\r\n")
+            self.transport.write("")
             self.transport.loseConnection()
             return
         
@@ -113,8 +113,12 @@ class SessionProtocol(ProtocolWrapper):
                 'Expires': 'Fri, 01 Jan 2500 00:00:00 GMT' #Get a new library by then
             })
         elif self.factory.options['cookie_needed']:
-            cookie = 'JSESSIONID=dummy;path=/;' if 'Cookie' not in self.headers else self.headers['Cookie']
-            headers.update({'Set-Cookie':cookie})
+            c = Cookie.SimpleCookie()
+            c['JSESSIONID'] = 'dummy'
+            if 'Cookie' in self.headers:
+                c.load(self.headers['Cookie'])
+            c['JSESSIONID']['path'] = '/'
+            headers.update({'Set-Cookie':c['JSESSIONID'].OutputString()})
         headers.update(h)
         h = ''
         if 'status' in headers:
