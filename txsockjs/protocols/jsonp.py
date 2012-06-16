@@ -24,9 +24,35 @@
 # OF THE POSSIBILITY OF SUCH DAMAGE.
 
 from txsockjs.protocols.base import SessionProtocol
+from urlparse import parse_qs
+from urllib import quote
 
 class JSONP(SessionProtocol):
-    pass
+    allowedMethods = ['OPTIONS','GET']
+    contentType = 'application/javascript; charset=UTF-8'
+    def prepConnection(self):
+        if not self.query or 'c' not in self.query:
+            self.sendHeaders({'status': '500 Internal Server Error'})
+            SessionProtocol.write(self, '"callback" parameter required')
+            self.loseConnection()
+            return True
+        self.sendHeaders()
+    def write(self, data):
+        packet = "callback(\"%s\");\r\n" % quote(data)
+        SessionProtocol.write(self, packet)
+    def writeSequence(self, data):
+        for d in data:
+            self.write(d)
+        self.loseConnection()
 
 class JSONPSend(SessionProtocol):
-    pass
+    allowedMethods = ['OPTIONS','POST']
+    contentType = 'text/plain; charset=UTF-8'
+    writeOnly = True
+    def sendBody(self):
+        SessionProtocol.write('ok')
+    def dataReceived(self, data):
+        if self.headers['Content-Type'] == 'application/x-www-form-urlencoded':
+            query = parse_qs(data, True)
+            data = query.get('d','')
+        SessionProtocol.dataReceived(self, data)

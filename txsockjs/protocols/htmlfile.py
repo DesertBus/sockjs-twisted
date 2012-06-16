@@ -24,6 +24,40 @@
 # OF THE POSSIBILITY OF SUCH DAMAGE.
 
 from txsockjs.protocols.base import SessionProtocol
+from urllib import quote
 
 class HTMLFile(SessionProtocol):
-    pass
+    allowedMethods = ['OPTIONS','GET']
+    contentType = 'text/html; charset=UTF-8'
+    chunked = False
+    sent = 0
+    def prepConnection(self):
+        if not self.query or 'c' not in self.query:
+            self.sendHeaders({'status': '500 Internal Server Error'})
+            SessionProtocol.write(self, '"callback" parameter required')
+            self.loseConnection()
+            return True
+        self.sendHeaders()
+        SessionProtocol.write(self, r'''
+<!doctype html>
+<html><head>
+  <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+</head><body><h2>Don't panic!</h2>
+  <script>
+    document.domain = document.domain;
+    var c = parent.%s;
+    c.start();
+    function p(d) {c.message(d);};
+    window.onload = function() {c.stop();};
+  </script>
+''' % self.query['c'][0])
+    def write(self, data):
+        packet = '<script>\np("%s");\n</script>\r\n' % quote(data)
+        self.sent += len(packet)
+        SessionProtocol.write(self, packet)
+        if self.sent > self.factory.options['streaming_limit']:
+            self.loseConnection()
+    def writeSequence(self, data):
+        for d in data:
+            self.write(d)

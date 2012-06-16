@@ -41,7 +41,7 @@ class Static(Protocol):
         if not self.validateMethod():
             h = {
                 'status': '405 Method Not Supported',
-                'allow': 'True??'
+                'allow': ', '.join(self.allowedMethods)
             }
             self.sendHeaders(h)
             self.transport.loseConnection()
@@ -49,14 +49,16 @@ class Static(Protocol):
         return True
     def sendHeaders(self, headers = {}):
         if 'Origin' in self.parent.headers and self.parent.headers['Origin'] != 'null':
-            origin = self.parent.headers['origin']
+            origin = self.parent.headers['Origin']
         else:
             origin = '*'
         h = {
             'status': '200 OK',
             'access-control-allow-origin': origin,
-            'access-control-allow-credentials': 'true'
+            'access-control-allow-credentials': 'true',
+            'Connection': 'close'
         }
+        h.update(headers)
         if self.parent.method == 'OPTIONS':
             h.update({
                 'status': '204 No Body',
@@ -64,7 +66,6 @@ class Static(Protocol):
                 'access-control-max-age': '31536000',
                 'Access-Control-Allow-Methods': ', '.join(self.allowedMethods)
             })
-        h.update(headers)
         headers = ""
         if 'status' in h:
             headers += "HTTP/1.1 %s\r\n" % h['status']
@@ -96,13 +97,16 @@ class Info(Static):
             'content-type': 'application/json; charset=UTF-8',
             'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0',
         }
+        self.sendHeaders(h)
+        if self.parent.method == "OPTIONS":
+            self.transport.loseConnection()
+            return
         b = {
             'websocket': self.parent.factory.options['websocket'],
             'cookie_needed': self.parent.factory.options['cookie_needed'],
             'origins': ['*:*'],
             'entropy': random.randint(0,2**32-1)
         }
-        self.sendHeaders(h)
         self.sendBody(json.dumps(b))
 
 class IFrame(Static):

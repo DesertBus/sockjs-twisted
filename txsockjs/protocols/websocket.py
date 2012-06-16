@@ -23,7 +23,38 @@
 # OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
 # OF THE POSSIBILITY OF SUCH DAMAGE.
 
-from txsockjs.protocols.base import SessionProtocol
+import json
+from txsockjs.protocols.rawwebsocket import RawWebSocket
 
-class WebSocket(SessionProtocol):
-    pass
+class WebSocket(RawWebSocket):
+    def write(self, data):
+        RawWebSocket.write(self, "a"+json.dumps([data]))
+    def writeSequence(self, data):
+        RawWebSocket.write(self, "a"+json.dumps(data))
+    def relayData(self, data):
+        if data == '':
+            return
+        try:
+            packets = json.loads(data)
+            for p in packets:
+                RawWebSocket.relayData(self,p)
+        except ValueError:
+            RawWebSocket.close(self)
+    def prepConnection(self):
+        RawWebSocket.write(self,"o")
+    def failConnect(self):
+        if not self.method in self.allowedMethods:
+            self.sendHeaders({
+                'status': '405 Method Not Allowed',
+                'Allow': ', '.join(self.allowedMethods)
+            })
+        elif not self.headers.get("Upgrade","").lower() == "websocket":
+            self.sendHeaders({'status':'400 Bad Request'})
+            self.transport.write('Can "Upgrade" only to "WebSocket".')
+        elif not "Upgrade" in self.headers.get("Connection", ""):
+            self.sendHeaders({'status':'400 Bad Request'})
+            self.transport.write('Can "Upgrade" only to "WebSocket".')
+        self.transport.loseConnection()
+    def close(self, code = 3000, reason = "Go away!"):
+        RawWebSocket.write(self,'c[%d,"%s"]' % (code, reason))
+        RawWebSocket.close(self)

@@ -49,10 +49,12 @@ from struct import pack, unpack
 from base64 import b64encode, b64decode
 from twisted.internet.interfaces import ISSLTransport
 from twisted.web.http import datetimeToString
-from txsockjs.protocols.base import SessionProtocol
+from twisted.protocols.policies import ProtocolWrapper
+from zope.interface import directlyProvides, providedBy
+from twisted.internet.protocol import Protocol
 
 REQUEST, CHALLENGE, FRAMES = range(3)
-HYBI00, HYBI07, HYBI10, RFC6455 = range(4)
+HIXIE75, HYBI00, HYBI07, HYBI10, RFC6455 = range(5)
 NORMAL, CLOSE, PING, PONG = range(4)
 encoders = {
     "base64": b64encode,
@@ -69,7 +71,7 @@ opcodes = {
     0xA: PONG,
 }
 
-class RawWebSocket(SessionProtocol):
+class RawWebSocket(ProtocolWrapper):
     allowedMethods = ['GET']
     buf = ""
     host = 'example.com'
@@ -78,22 +80,49 @@ class RawWebSocket(SessionProtocol):
     flavor = None
     state = REQUEST
     def __init__(self, parent):
-        SessionProtocol.__init__(self, parent)
+        self.method = parent.method
+        self.headers = parent.headers
+        self.session = parent.session
+        self.location = parent.location
+        self.factory = parent.factory
+        self.transport = parent
+        self.wrappedProtocol = None
         self.pendingFrames = []
         if self.validateHeaders():
-            self.connect()
+            self.wrappedProtocol = self.factory.wrappedFactory.buildProtocol(self.transport.addr)
+    def prepConnection(self):
+        pass
+    def makeConnection(self, transport):
+        directlyProvides(self, providedBy(transport))
+        Protocol.makeConnection(self, transport)
+        if self.wrappedProtocol:
+            self.prepConnection()
+            self.wrappedProtocol.makeConnection(self)
         else:
-            print("Validation of Headers failed")
+            self.failConnect()
+    def failConnect(self):
+        self.transport.loseConnection()
+    def loseConnection(self):
+        self.close()
+    def connectionLost(self, reason):
+        if self.wrappedProtocol:
+            self.wrappedProtocol.connectionLost(reason)
+    def close(self):
+        self.transport.loseConnection()
+    def relayData(self, data):
+        self.wrappedProtocol.dataReceived(data)
     def isWebsocket(self):
         return ("Upgrade" in self.headers.get("Connection", "") and self.headers.get("Upgrade").lower() == "websocket")
     def isSecure(self):
         return ISSLTransport(self.transport, None) is not None
+    def isHixie75(self):
+        return "Sec-WebSocket-Version" not in self.headers and "Sec-WebSocket-Key1" not in self.headers and "Sec-WebSocket-Key2" not in self.headers
     def isHybi00(self):
         return "Sec-WebSocket-Key1" in self.headers and "Sec-WebSocket-Key2" in self.headers
     def validateHeaders(self):
+        if not self.method in self.allowedMethods:
+            return False
         if not self.isWebsocket():
-            print("Not a websocket!")
-            print(repr(self.headers))
             return False
         if "Host" in self.headers:
             self.host = self.headers["Host"]
@@ -106,21 +135,27 @@ class RawWebSocket(SessionProtocol):
             protocol = self.headers["Sec-WebSocket-Protocol"]
         if protocol:
             if protocol not in encoders or protocol not in decoders:
-                print("Invalid protocol - %s" % protocol)
                 return False
             self.codec = protocol
-        if self.isHybi00():
+        if self.isHixie75():
+            self.flavor = HIXIE75
+            self.state = FRAMES
+            protocol = "wss" if self.isSecure() else "ws"
+            self.sendHeaders({
+                'WebSocket-Origin': self.origin,
+                'WebSocket-Location': '%s://%s%s' % (protocol, self.host, self.location),
+                'WebSocket-Protocol': self.codec
+            })
+        elif self.isHybi00():
             self.flavor = HYBI00
             self.state = CHALLENGE
-            #protocol = "wss" if self.isSecure() else "ws"
-            protocol = "ws"
+            protocol = "wss" if self.isSecure() else "ws"
             self.sendHeaders({
                 'Sec-WebSocket-Origin': self.origin,
                 'Sec-WebSocket-Location': '%s://%s%s' % (protocol, self.host, self.location),
-                'WebSocket-Protocol': self.codec,
                 'Sec-WebSocket-Protocol': self.codec
             })
-        if "Sec-WebSocket-Version" in self.headers:
+        elif "Sec-WebSocket-Version" in self.headers:
             version = self.headers["Sec-WebSocket-Version"]
             if version == "7":
                 self.flavor = HYBI07
@@ -129,13 +164,14 @@ class RawWebSocket(SessionProtocol):
             elif version == "13":
                 self.flavor = RFC6455
             else:
-                print("Invalid Version")
                 return False
             self.state = FRAMES
             key = self.headers["Sec-WebSocket-Key"]
             guid = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
             accept = sha1("%s%s" % (key, guid)).digest().encode("base64").strip()
             self.sendHeaders({"Sec-WebSocket-Accept":accept})
+        else:
+            return False
         return True
     def sendHeaders(self, headers = {}):
         h = {
@@ -143,14 +179,21 @@ class RawWebSocket(SessionProtocol):
             'Server': 'SockJSTwisted/1.0',
             'Date': datetimeToString(),
             'Upgrade': 'WebSocket',
-            'Connection': 'Upgrade'
+            'Connection': 'Upgrade',
+            'transfer-encoding': 'chunked'
         }
         h.update(headers)
-        SessionProtocol.sendHeaders(self,h)
+        headers = ""
+        if 'status' in h:
+            headers += "HTTP/1.1 %s\r\n" % h['status']
+            del h['status']
+        for k, v in h.iteritems():
+            headers += "%s: %s\r\n" % (k, v)
+        self.transport.write(headers + "\r\n")
     def sendFrames(self):
         if self.state != FRAMES:
             return
-        if self.flavor == HYBI00:
+        if self.flavor in (HIXIE75, HYBI00):
             maker = self.makeHybi00Frame
         elif self.flavor in (HYBI07, HYBI10, RFC6455):
             maker = self.makeHybi07Frame
@@ -163,7 +206,7 @@ class RawWebSocket(SessionProtocol):
             self.transport.write(packet)
         self.pendingFrames = []
     def parseFrames(self):
-        if self.flavor == HYBI00:
+        if self.flavor in (HIXIE75, HYBI00):
             parser = self.parseHybi00Frame
         elif self.flavor in (HYBI07, HYBI10, RFC6455):
             parser = self.parseHybi07Frame
@@ -194,7 +237,7 @@ class RawWebSocket(SessionProtocol):
                 first = int("".join(i for i in key1 if i in digits)) / key1.count(" ")
                 second = int("".join(i for i in key2 if i in digits)) / key2.count(" ")
                 nonce = md5(pack(">II8s", first, second, challenge)).digest()
-                self.parent.write(nonce)
+                self.transport.write(nonce)
                 self.state = FRAMES
             elif self.state == FRAMES:
                 self.parseFrames()
@@ -210,9 +253,9 @@ class RawWebSocket(SessionProtocol):
         if self.flavor in (HYBI07, HYBI10, RFC6455):
             frame = self.makeHybi07Frame(reason, opcode=0x8)
             self.transport.write(frame)
-        self.loseConnection()
+        self.transport.loseConnection()
     def makeHybi00Frame(self, data):
-        return "\x00%s\xFF" % buf
+        return "\x00%s\xFF" % data
     def makeHybi07Frame(self, data, opcode = 0x1):
         if len(data) > 0xFFFF:
             length = "\x7f%s" % pack(">Q", len(data))
@@ -253,7 +296,6 @@ class RawWebSocket(SessionProtocol):
                 raise Exception("Unknown opcode %d in HyBi-07 frame" % opcode)
             length = ord(self.buf[start+1])
             masked = length & 0x80
-            print("Masked = %d" % masked)
             length &= 0x7F
             offset = 2
             if length == 0x7E:
@@ -268,7 +310,6 @@ class RawWebSocket(SessionProtocol):
                 length = self.buf[start+2:start+10]
                 length = unpack(">Q", length)[0]
                 offset += 8
-            print("Length = %d" % length)
             if masked:
                 if len(self.buf) - (start+offset) < 4:
                     break

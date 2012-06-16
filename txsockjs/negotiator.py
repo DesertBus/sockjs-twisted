@@ -39,6 +39,8 @@ class SockJSNegotiator(ProtocolWrapper):
     headers = None
     session = None
     location = None
+    query = None
+    version = None
     factory = None
     wrappedProtocol = None
     addr = None
@@ -62,7 +64,7 @@ class SockJSNegotiator(ProtocolWrapper):
                 if "\r\n" in self.buf:
                     request, chaff, self.buf = self.buf.partition("\r\n")
                     try:
-                        self.method, self.location, version = request.split(" ")
+                        self.method, self.location, self.version = request.split(" ")
                     except ValueError:
                         print("Could not determine location, closing connection")
                         self.loseConnection()
@@ -81,11 +83,8 @@ class SockJSNegotiator(ProtocolWrapper):
         print("Negotiator lost connection - %s" % reason)
         if self.wrappedProtocol:
             self.wrappedProtocol.connectionLost(reason)
-    def __getattr__(self, name):
-        print("Negotiator __getattr__ %s" % name)
-        return getattr(self.transport, name)
     def negotiate(self):
-        prefix, self.session, method = utils.parsePath(self.location,self.factory.resolvePrefix)
+        prefix, self.session, method, self.query = utils.parsePath(self.location,self.factory.routes.keys())
         self.factory = self.factory.resolvePrefix(prefix)
         if self.factory is None:
             method = methods['ERROR404']

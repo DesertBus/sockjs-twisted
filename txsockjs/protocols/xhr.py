@@ -26,10 +26,38 @@
 from txsockjs.protocols.base import SessionProtocol
 
 class XHR(SessionProtocol):
-    pass
+    allowedMethods = ['OPTIONS','POST']
+    contentType = 'application/javascript; charset=UTF-8'
+    chunked = False
+    def write(self, data):
+        SessionProtocol.write(self, "%s\n" % data)
+    def writeSequence(self, data):
+        for d in data:
+            self.write(d)
+        self.loseConnection()
 
 class XHRSend(SessionProtocol):
-    pass
+    allowedMethods = ['OPTIONS','POST']
+    contentType = 'text/plain; charset=UTF-8'
+    writeOnly = True
+    def sendHeaders(self, headers = {}):
+        h = {'status': '204 No Body'}
+        h.update(headers)
+        SessionProtocol.sendHeaders(self, h)
 
 class XHRStream(SessionProtocol):
-    pass
+    allowedMethods = ['OPTIONS','POST']
+    contentType = 'application/javascript; charset=UTF-8'
+    sent = 0
+    def prepConnection(self):
+        self.sendHeaders()
+        self.writeSequence(['h'*2048])
+    def write(self, data):
+        packet = "%s\n" % data
+        self.sent += len(packet)
+        SessionProtocol.write(self, packet)
+        if self.sent > self.factory.options['streaming_limit']:
+            self.loseConnection()
+    def writeSequence(self, data):
+        for d in data:
+            self.write(d)

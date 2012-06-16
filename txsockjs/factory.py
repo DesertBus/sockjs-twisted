@@ -26,21 +26,27 @@
 from twisted.protocols.policies import WrappingFactory
 from twisted.internet.protocol import ClientFactory
 from txsockjs.negotiator import SockJSNegotiator
-from txsockjs.constants import reservedPrefixes
+from txsockjs.utils import validatePrefix
 
 class SockJSFactory(WrappingFactory):
-    options = {
-        'websocket': True,
-        'cookie_needed': False,
-        'heartbeat': 25,
-        'timeout': 5
-    }
-    sessions = {}
+    options = None
+    sessions = None
+    routes = None
     protocol = SockJSNegotiator
     def __init__(self, factory, options = None):
+        self.options = {
+            'websocket': True,
+            'cookie_needed': False,
+            'heartbeat': 25,
+            'timeout': 5,
+            'streaming_limit': 128 * 1024
+        }
+        self.sessions = {}
+        self.routes = {'':self}
+        self.wrappedFactory = factory
+        
         if options is not None:
             self.options.update(options)
-        self.wrappedFactory = factory
     def buildProtocol(self, addr):
         return self.protocol(self, addr)
     def registerProtocol(self, p):
@@ -51,20 +57,20 @@ class SockJSFactory(WrappingFactory):
         return self
 
 class SockJSMultiFactory(ClientFactory):
-    routes = {}
+    routes = None
     protocol = SockJSNegotiator
+    def __init__(self):
+        self.routes = {}
     def doStop(self):
-        for factory in routes.itervalues():
+        for factory in self.routes.itervalues():
             factory.doStop()
         ClientFactory.doStop(self)
     def buildProtocol(self, addr):
         return self.protocol(self, addr)
     def addFactory(self, factory, prefix, options = None):
-        prefix = prefix.strip().strip("/")
-        for p in reservedPrefixes:
-            if p.match(prefix):
-                raise ValueError()
-        routes[prefix] = SockJSFactory(factory, options)
+        if not validatePrefix(prefix):
+            raise ValueError()
+        self.routes[prefix] = SockJSFactory(factory, options)
     def resolvePrefix(self, prefix):
         if prefix in self.routes:
             return self.routes[prefix]
