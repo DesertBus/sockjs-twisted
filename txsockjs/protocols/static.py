@@ -64,7 +64,8 @@ class Static(Protocol):
                 'status': '204 No Body',
                 'Cache-Control': 'public, max-age=31536000',
                 'access-control-max-age': '31536000',
-                'Access-Control-Allow-Methods': ', '.join(self.allowedMethods)
+                'Access-Control-Allow-Methods': ', '.join(self.allowedMethods),
+                'Expires': 'Fri, 01 Jan 2500 00:00:00 GMT' #Get a new library by then
             })
         headers = ""
         if 'status' in h:

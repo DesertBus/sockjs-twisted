@@ -3,7 +3,7 @@ from txsockjs.factory import SockJSMultiFactory
 
 class Echo(protocol.Protocol):
     def dataReceived(self, data):
-        print ">>> %s" % data
+        #print ">>> %s" % data
         self.transport.write(data)
 
 class EchoFactory(protocol.Factory):

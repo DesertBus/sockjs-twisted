@@ -30,6 +30,7 @@ from urllib import quote
 class JSONP(SessionProtocol):
     allowedMethods = ['OPTIONS','GET']
     contentType = 'application/javascript; charset=UTF-8'
+    chunked = False
     def prepConnection(self):
         if not self.query or 'c' not in self.query:
             self.sendHeaders({'status': '500 Internal Server Error'})
@@ -54,5 +55,5 @@ class JSONPSend(SessionProtocol):
     def dataReceived(self, data):
         if self.headers['Content-Type'] == 'application/x-www-form-urlencoded':
             query = parse_qs(data, True)
-            data = query.get('d','')
+            data = query.get('d',[''])[0]
         SessionProtocol.dataReceived(self, data)

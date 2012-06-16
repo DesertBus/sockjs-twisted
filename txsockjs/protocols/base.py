@@ -50,10 +50,12 @@ class SessionProtocol(ProtocolWrapper):
         
         if not self.method in self.allowedMethods:
             self.sendHeaders({'status': '405 Method Not Supported','allow': ', '.join(self.allowedMethods)})
+            self.transport.write("\r\n")
             self.transport.loseConnection()
             return
         elif self.method == 'OPTIONS':
             self.sendHeaders()
+            self.transport.write("\r\n")
             self.transport.loseConnection()
             return
         
@@ -74,6 +76,7 @@ class SessionProtocol(ProtocolWrapper):
                 self.wrappedProtocol = self.factory.sessions[self.session]
             else:
                 self.sendHeaders({'status': '404 Not Found'})
+                self.transport.write("\r\n")
                 self.transport.loseConnection()
     def connectionLost(self, reason):
         if not self.writeOnly and self.wrappedProtocol:
@@ -106,7 +109,8 @@ class SessionProtocol(ProtocolWrapper):
                 'status': '204 No Body',
                 'Cache-Control': 'public, max-age=31536000',
                 'access-control-max-age': '31536000',
-                'Access-Control-Allow-Methods': ', '.join(self.allowedMethods)
+                'Access-Control-Allow-Methods': ', '.join(self.allowedMethods),
+                'Expires': 'Fri, 01 Jan 2500 00:00:00 GMT' #Get a new library by then
             })
         elif self.factory.options['cookie_needed']:
             cookie = 'JSESSIONID=dummy;path=/;' if 'Cookie' not in self.headers else self.headers['Cookie']
