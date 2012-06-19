@@ -4,6 +4,21 @@ SockJS-Twisted
 
 A simple library for adding SockJS support to your twisted application.
 
+Status
+======
+
+SockJS-Twisted passes all `SockJS-Protocol <https://github.com/sockjs/sockjs-protocol>`_ tests
+except for returning the ``transfer-encoding: chunked`` header for websockets, as well as not
+supporting ``Connection: Keep-Alive``.
+
+SockJS-Twisted has been tested with the sample chat application in the tests directory, and it
+has been shown to work on all supported transports on Chrome, Firefox, Internet Explorer, Safari,
+and Opera. However, this testing was very light, and does not cover all edge cases.
+
+**Therefore, SockJS-Twisted is not proven production ready.** Please feel free to use it for
+projects where its failure would not be catastrophic, but it comes with no warranty. As
+always, any reports on performance or bugs is greatly appreciated.
+
 Usage
 =====
 
@@ -46,11 +61,15 @@ A dictionary of options can be passed into the factory to control SockJS behavio
     >>> SockJSFactory(factory_to_wrap, options)
     >>> SockJSMultiFactory().addFactory(factory_to_wrap, prefix, options)
 
-*websocket* - whether websockets are supported as a protocol. Useful for proxies or load balancers that don't support websockets.
-*cookie_needed* - whether the JSESSIONID cookie is set. Results in less performant protocols being used, so don't require them unless your load balancer requires it.
-*heartbeat* - how often a heartbeat message is sent to keep the connection open. Do not increase this unless you know what you are doing.
-*timeout* - maximum delay between connections before the underlying protocol is disconnected
-*streaming_limit* - how many bytes can be sent over a streaming protocol before it is cycled. Allows browser-side garbage collection to lower RAM usage.
+**websocket** - whether websockets are supported as a protocol. Useful for proxies or load balancers that don't support websockets.
+
+**cookie_needed** - whether the JSESSIONID cookie is set. Results in less performant protocols being used, so don't require them unless your load balancer requires it.
+
+**heartbeat** - how often a heartbeat message is sent to keep the connection open. Do not increase this unless you know what you are doing.
+
+**timeout** - maximum delay between connections before the underlying protocol is disconnected
+
+**streaming_limit** - how many bytes can be sent over a streaming protocol before it is cycled. Allows browser-side garbage collection to lower RAM usage.
 
 Caveats
 =======
