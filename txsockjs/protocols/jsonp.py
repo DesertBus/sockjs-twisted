@@ -43,7 +43,7 @@ class JSONP(SessionProtocol):
         if self.written:
             self.wrappedProtocol.requeue([data])
             return
-        packet = "%s(\"%s\");\r\n" % (self.query['c'][0], data.replace('"','\\"'))
+        packet = "%s(\"%s\");\r\n" % (self.query['c'][0], data.replace('\\','\\\\').replace('"','\\"'))
         SessionProtocol.write(self, packet)
         self.written = True
         self.loseConnection()

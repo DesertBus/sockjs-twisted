@@ -31,13 +31,34 @@ For those who want to host multiple SockJS services off of one port,
 http://localhost:8080/echo and http://localhost:8080/chat will give you access
 to your EchoFactory and ChatFactory.
 
+Options
+=======
+
+A dictionary of options can be passed into the factory to control SockJS behavior.
+
+    >>> options = {
+    >>>     'websocket': True,
+    >>>     'cookie_needed': False,
+    >>>     'heartbeat': 25,
+    >>>     'timeout': 5,
+    >>>     'streaming_limit': 128 * 1024
+    >>> }
+    >>> SockJSFactory(factory_to_wrap, options)
+    >>> SockJSMultiFactory().addFactory(factory_to_wrap, prefix, options)
+
+*websocket* - whether websockets are supported as a protocol. Useful for proxies or load balancers that don't support websockets.
+*cookie_needed* - whether the JSESSIONID cookie is set. Results in less performant protocols being used, so don't require them unless your load balancer requires it.
+*heartbeat* - how often a heartbeat message is sent to keep the connection open. Do not increase this unless you know what you are doing.
+*timeout* - maximum delay between connections before the underlying protocol is disconnected
+*streaming_limit* - how many bytes can be sent over a streaming protocol before it is cycled. Allows browser-side garbage collection to lower RAM usage.
+
 Caveats
 =======
 
-SockJS-Twisted does not attempt to offer multiple endpoints on one connection,
-and is not designed to be run on port 80 or 443 alongside a webserver. It is primarily
-for existing TCP based applications to offer a backwards compatible web connection,
-similar to `txWS <https://github.com/MostAwesomeDude/txWS/>`_.
+SockJS-Twisted does not re-use any HTTP machinery, and is not designed to be run
+on port 80 or 443 alongside a webserver. It is primarily for existing TCP based 
+applications to offer a backwards compatible web connection, similar to 
+`txWS <https://github.com/MostAwesomeDude/txWS/>`_.
 
 License
 =======

@@ -39,7 +39,8 @@ class XHR(SessionProtocol):
         self.written = True
         self.loseConnection()
     def writeSequence(self, data):
-        self.write(data.pop(0))
+        if not self.written:
+            self.write(data.pop(0))
         self.wrappedProtocol.requeue(data)
 
 class XHRSend(SessionProtocol):

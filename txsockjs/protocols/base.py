@@ -217,8 +217,9 @@ class RelayProtocol(ProtocolWrapper):
             else:
                 self.flushData()
                 if self.pending:
-                    self.transport.writeSequence(self.pending)
+                    data = list(self.pending)
                     self.pending = []
+                    self.transport.writeSequence(data)
     def flushData(self):
         if self.buffer:
             data = 'a'+json.dumps(self.buffer, separators=(',',':'))

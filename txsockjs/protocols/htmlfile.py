@@ -51,7 +51,7 @@ class HTMLFile(SessionProtocol):
   </script>%s
 ''' % (self.query['c'][0], ' '*1024))
     def write(self, data):
-        packet = '<script>\np("%s");\n</script>\r\n' % data.replace('"','\\"')
+        packet = "<script>\np(\"%s\");\n</script>\r\n" % data.replace('\\','\\\\').replace('"','\\"')
         self.sent += len(packet)
         SessionProtocol.write(self, packet)
         if self.sent > self.factory.options['streaming_limit']:

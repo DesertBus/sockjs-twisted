@@ -1,0 +1,78 @@
+<!doctype html>
+<html>
+	<head>
+		<title>IRC Client Test</title>
+		<script src="https://ajax.googleapis.com/ajax/libs/jquery/1.7.1/jquery.min.js"></script>
+        <script src="http://cdn.sockjs.org/sockjs-0.3.min.js"></script>
+		<style>
+			#container {
+				width: 800px;
+				margin: 40px auto;
+				padding: 0;
+			}
+            #irc-holder {
+				height: 600px;
+                width: 800px;
+				overflow: auto;
+                border: 2px solid black;
+            }
+            #irc { width: 100%; border-collapse: collapse; }
+			#irc tr { border-bottom: 1px solid gray; }
+			#chatter input[type="text"] { width: 700px; }
+			#chatter input[type="submit"] { width: 90px; }
+            #protocol { font-size: 1.5em; margin: auto; width: 300px; display: block; }
+		</style>
+	</head>
+	<body>
+		<div id="container">
+            <div id="irc-holder">
+                <table id="irc"></table>
+            </div>
+			<form method="GET" id="chatter">
+				<input type="text" />
+				<input type="submit" value="Send" />
+                <br />
+                <select id="protocol">
+                    <option value="websocket" selected>Websocket</option>
+                    <option value="xdr-streaming">XDR Streaming</option>
+                    <option value="xhr-streaming">XHR Streaming</option>
+                    <option value="iframe-eventsource">Eventsource</option>
+                    <option value="iframe-htmlfile">HTMLFile</option>
+                    <option value="xdr-polling">XDR Polling</option>
+                    <option value="xhr-polling">XHR Polling</option>
+                    <option value="iframe-xhr-polling">XHR Polling (IFrame)</option>
+                    <option value="jsonp-polling">JSONP Polling</option>
+                </select>
+			</form>
+		</div>
+		<script>
+            $(document).keypress(function(e) { return e.which !== 0; });
+            var url = 'http://23.21.47.44:6672';
+            var conn = false;
+
+            function connect() {
+                if(conn)
+                    conn.close()
+                    conn = false
+                
+                var protocol = $('#protocol').val();
+                conn = new SockJS(url,null,{debug:true,devel:true,protocols_whitelist:[protocol]});
+                var log = function(msg) { $('#irc').append($('<tr>').html($('<td>').html(msg))); };
+                conn.onopen = function(evt) { log('<i>Connected via '+$('#protocol').val()+'</i>'); };
+                conn.onclose = function(evt) { log('<i>Disconnected</i>'); };
+                conn.onmessage = function(evt) { log($('<div>').text(evt.data).html()); };
+            }
+            
+            $('#chatter').submit(function() {
+                var txt = $(this).find('input[type="text"]');
+                var m = txt.val();
+                conn.send(m+"\r\n");
+                txt.val('');
+                return false;
+            });
+
+            $('#protocol').change(connect);
+            connect();
+        </script>
+	</body>
+</html>

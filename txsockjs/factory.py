@@ -52,7 +52,8 @@ class SockJSFactory(WrappingFactory):
     def registerProtocol(self, p):
         self.sessions[p.session] = p
     def unregisterProtocol(self, p):
-        del self.sessions[p.session]
+        if p.session in self.sessions:
+            del self.sessions[p.session]
     def resolvePrefix(self, prefix):
         return self
 
