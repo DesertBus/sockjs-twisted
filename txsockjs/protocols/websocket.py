@@ -35,6 +35,7 @@ class WebSocket(RawWebSocket):
         if data == '':
             return
         try:
+            #print "%s >>> %s" % (self.getType(), data)
             packets = json.loads(data)
             for p in packets:
                 RawWebSocket.relayData(self,p)

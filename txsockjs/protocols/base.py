@@ -24,15 +24,17 @@
 # OF THE POSSIBILITY OF SUCH DAMAGE.
 
 from zope.interface import directlyProvides, providedBy
+from twisted.internet import reactor
 from twisted.internet.protocol import Protocol
 from twisted.protocols.policies import ProtocolWrapper
-import json, Cookie
+import json, Cookie, urllib
 
 class SessionProtocol(ProtocolWrapper):
     allowedMethods = ['OPTIONS']
     contentType = 'text/plain; charset=UTF-8'
     writeOnly = False
     chunked = True
+    disconnecting = True
     def __init__(self, parent):
         self.method = parent.method
         self.headers = parent.headers
@@ -70,6 +72,7 @@ class SessionProtocol(ProtocolWrapper):
                 self.failConnect()
             else:
                 if not self.prepConnection():
+                    self.disconnecting = False
                     self.wrappedProtocol.makeConnection(self)
         else:
             if self.session in self.factory.sessions:
@@ -81,6 +84,8 @@ class SessionProtocol(ProtocolWrapper):
     def connectionLost(self, reason):
         if not self.writeOnly and self.wrappedProtocol:
             self.wrappedProtocol.connectionLost(reason)
+        if not self.writeOnly and not self.disconnecting and self.wrappedProtocol:
+            self.wrappedProtocol.disconnect()
     def prepConnection(self):
         self.sendHeaders()
     def failConnect(self):
@@ -100,7 +105,7 @@ class SessionProtocol(ProtocolWrapper):
             'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0',
             'Connection': 'close'
         }
-        if self.chunked and not self.writeOnly and self.version == 'HTTP/1.1':
+        if self.chunked and not self.writeOnly and self.version == 'HTTP/1.1' and self.method != 'OPTIONS':
             headers['transfer-encoding'] = 'chunked'
         if 'Access-Control-Request-Headers' in self.headers and self.headers['Access-Control-Request-Headers']:
             headers['Access-Control-Allow-Headers'] = self.headers['Access-Control-Request-Headers']
@@ -123,6 +128,7 @@ class SessionProtocol(ProtocolWrapper):
         h = ''
         if 'status' in headers:
             h += "HTTP/1.1 %s\r\n" % headers['status']
+            print "HTTP/1.1 %s %s" % (headers['status'], self.location)
             del headers['status']
         for k, v in headers.iteritems():
             h += "%s: %s\r\n" % (k, v)
@@ -131,10 +137,12 @@ class SessionProtocol(ProtocolWrapper):
         if not self.chunked or self.writeOnly or self.version != 'HTTP/1.1':
             self.transport.write(data)
         else:
+            #print "SENDING CHUNKED DATA - LEN = %d" % len(data)
             self.transport.write("%X\r\n%s\r\n" % (len(data), data))
     def loseConnection(self):
         if self.chunked and not self.writeOnly and self.version == 'HTTP/1.1':
-            self.write('')
+            self.transport.write('0\r\n\r\n')
+        self.disconnecting = True
         self.transport.loseConnection()
     def dataReceived(self, data):
         if not self.wrappedProtocol or not self.writeOnly:
@@ -142,16 +150,18 @@ class SessionProtocol(ProtocolWrapper):
         self.buf += data
         if 'Content-Length' in self.headers and len(self.buf) < int(self.headers['Content-Length']):
             return
-        ret = self.wrappedProtocol.dataReceived(data)
+        ret = self.wrappedProtocol.dataReceived(self.buf)
+        self.buf = ""
         if ret:
-            self.sendHeaders({'status':'500 Internal Server Error'})
-            self.write(ret)
+            print ret
+            ret += "\r\n"
+            self.sendHeaders({'status':'500 Internal Server Error','Content-Length':str(len(ret))})
+            self.transport.write(ret)
         else:
-            self.sendHeaders()
             self.sendBody()
         self.loseConnection()
     def sendBody(self):
-        pass
+        self.sendHeaders()
         
 class RelayProtocol(ProtocolWrapper):
     def __init__(self, factory, protocol, session):
@@ -159,37 +169,67 @@ class RelayProtocol(ProtocolWrapper):
         self.wrappedProtocol = protocol
         self.factory = factory
         self.transport = None
-        self.pending = ['o']
+        self.pending = []
+        self.buffer = []
         self.attached = False
+        self.connecting = True
         self.disconnecting = False
+        
         self.factory.registerProtocol(self)
         self.wrappedProtocol.makeConnection(self)
+        reactor.callLater(self.factory.options['heartbeat'], self.heartbeat)
+        self.timeout = reactor.callLater(self.factory.options['timeout'], self.disconnect)
+    def heartbeat(self):
+        self.pending.append('h')
+        reactor.callLater(self.factory.options['heartbeat'], self.heartbeat)
     def makeConnection(self, transport):
         directlyProvides(self, providedBy(transport))
         Protocol.makeConnection(self, transport)
         self.attached = True
-        if self.pending:
-            self.transport.writeSequence(self.pending)
-            self.pending = []
-        if self.disconnecting:
-            self.loseConnection()
+        if self.timeout.active():
+            self.timeout.cancel()
+        self.sendData()
     def loseConnection(self):
         self.disconnecting = True
-        if self.transport:
-            self.transport.write('c[3000,"Go away!"]')
-            self.transport.loseConnection()
+        self.sendData()
+    def disconnect(self):
+        self.wrappedProtocol.connectionLost(None)
+        self.factory.unregisterProtocol(self)
     def connectionLost(self, reason):
         self.transport = None
         self.attached = False
+        self.timeout = reactor.callLater(self.factory.options['timeout'], self.disconnect)
     def write(self, data):
-        self.writeSequence([data])
+        self.buffer.append(data)
+        self.sendData()
     def writeSequence(self, data):
-        data = 'a'+json.dumps(data)
+        self.buffer.extend(data)
+        self.sendData()
+    def sendData(self):
         if self.transport:
-            self.transport.write(data)
-        else:
+            if self.connecting:
+                self.transport.write('o')
+                self.connecting = False
+                self.sendData()
+            elif self.disconnecting:
+                self.transport.write('c[3000,"Go away!"]')
+                self.transport.loseConnection()
+            else:
+                self.flushData()
+                if self.pending:
+                    self.transport.writeSequence(self.pending)
+                    self.pending = []
+    def flushData(self):
+        if self.buffer:
+            data = 'a'+json.dumps(self.buffer, separators=(',',':'))
+            self.buffer = []
             self.pending.append(data)
+    def requeue(self, data):
+        data.extend(self.pending)
+        self.pending = data
     def dataReceived(self, data):
+        if self.timeout.active():
+            self.timeout.reset(5)
         if data == '':
             return "Payload expected."
         try:

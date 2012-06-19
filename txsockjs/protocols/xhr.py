@@ -29,12 +29,18 @@ class XHR(SessionProtocol):
     allowedMethods = ['OPTIONS','POST']
     contentType = 'application/javascript; charset=UTF-8'
     chunked = False
+    written = False
     def write(self, data):
-        SessionProtocol.write(self, "%s\n" % data)
-    def writeSequence(self, data):
-        for d in data:
-            self.write(d)
+        if self.written:
+            self.wrappedProtocol.requeue([data])
+            return
+        packet = "%s\n" % data
+        SessionProtocol.write(self, packet)
+        self.written = True
         self.loseConnection()
+    def writeSequence(self, data):
+        self.write(data.pop(0))
+        self.wrappedProtocol.requeue(data)
 
 class XHRSend(SessionProtocol):
     allowedMethods = ['OPTIONS','POST']
@@ -51,7 +57,7 @@ class XHRStream(SessionProtocol):
     sent = 0
     def prepConnection(self):
         self.sendHeaders()
-        self.writeSequence(['h'*2048])
+        SessionProtocol.write(self, 'h'*2048+"\n")
     def write(self, data):
         packet = "%s\n" % data
         self.sent += len(packet)

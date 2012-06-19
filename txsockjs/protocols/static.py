@@ -119,6 +119,7 @@ class IFrame(Static):
         if 'If-None-Match' in self.parent.headers and self.parent.headers['If-None-Match'].find(self.etag) >= 0: #Could result in false positives
             h = {'status': '304 Not Modified'}
             self.sendHeaders(h)
+            self.transport.loseConnection()
             return
         h = {
             'Cache-Control': 'public, max-age=31536000',

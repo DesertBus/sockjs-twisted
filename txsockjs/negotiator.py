@@ -48,7 +48,7 @@ class SockJSNegotiator(ProtocolWrapper):
     def __init__(self, factory, addr):
         ProtocolWrapper.__init__(self,factory,None)
         self.addr = addr
-        print("Negotiator Started")
+        #print("Negotiator Started")
     def makeConnection(self, transport):
         directlyProvides(self, providedBy(transport))
         Protocol.makeConnection(self, transport)
@@ -66,10 +66,10 @@ class SockJSNegotiator(ProtocolWrapper):
                     try:
                         self.method, self.location, self.version = request.split(" ")
                     except ValueError:
-                        print("Could not determine location, closing connection")
+                        #print("Could not determine location, closing connection")
                         self.loseConnection()
                     else:
-                        print("Negotiator entered NEGOTIATING state")
+                        #print("Negotiator entered NEGOTIATING state")
                         self.state = NEGOTIATING
             elif self.state == NEGOTIATING:
                 if "\r\n\r\n" in self.buf:
@@ -79,8 +79,11 @@ class SockJSNegotiator(ProtocolWrapper):
             elif self.state == ROUTED:
                 self.wrappedProtocol.dataReceived(self.buf)
                 self.buf = ""
+    #def write(self, data):
+    #    print ">>> %s" % data
+    #    self.transport.write(data)
     def connectionLost(self, reason):
-        print("Negotiator lost connection - %s" % reason)
+        #print("Negotiator lost connection - %s" % reason)
         if self.wrappedProtocol:
             self.wrappedProtocol.connectionLost(reason)
     def negotiate(self):
@@ -88,10 +91,10 @@ class SockJSNegotiator(ProtocolWrapper):
         self.factory = self.factory.resolvePrefix(prefix)
         if self.factory is None:
             method = methods['ERROR404']
-        print("Negotiator location is %s" % self.location)
-        print("Negotiator factory is %s" % self.factory.__class__.__name__)
-        print("Negotiator protocol is %s" % method.__name__)
+        #print("Negotiator location is %s" % self.location)
+        #print("Negotiator factory is %s" % self.factory.__class__.__name__)
+        #print("Negotiator protocol is %s" % method.__name__)
         self.wrappedProtocol = method(self)
         self.wrappedProtocol.makeConnection(self)
         self.state = ROUTED
-        print("Negotiator entered ROUTED state")
+        #print("Negotiator entered ROUTED state")

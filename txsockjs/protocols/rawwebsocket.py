@@ -70,6 +70,13 @@ opcodes = {
     0x9: PING,
     0xA: PONG,
 }
+types = {
+    HIXIE75: "HIXIE75",
+    HYBI00: "HYBI00",
+    HYBI07: "HYBI07",
+    HYBI10: "HYBI10",
+    RFC6455: "RFC6455"
+}
 
 class RawWebSocket(ProtocolWrapper):
     allowedMethods = ['GET']
@@ -90,6 +97,10 @@ class RawWebSocket(ProtocolWrapper):
         self.pendingFrames = []
         if self.validateHeaders():
             self.wrappedProtocol = self.factory.wrappedFactory.buildProtocol(self.transport.addr)
+    def getType(self):
+        if self.flavor in types:
+            return types[self.flavor]
+        return None
     def prepConnection(self):
         pass
     def makeConnection(self, transport):
@@ -103,12 +114,12 @@ class RawWebSocket(ProtocolWrapper):
     def failConnect(self):
         self.transport.loseConnection()
     def loseConnection(self):
+        #print "Aborting connection"
         self.close()
     def connectionLost(self, reason):
+        #print "%s lost connection because %s" % (self.getType(), str(reason))
         if self.wrappedProtocol:
             self.wrappedProtocol.connectionLost(reason)
-    def close(self):
-        self.transport.loseConnection()
     def relayData(self, data):
         self.wrappedProtocol.dataReceived(data)
     def isWebsocket(self):
@@ -214,6 +225,7 @@ class RawWebSocket(ProtocolWrapper):
         try:
             frames = parser()
         except:
+            #print "Frame parse error"
             self.close()
             return
         for frame in frames:
@@ -223,6 +235,7 @@ class RawWebSocket(ProtocolWrapper):
                     data = decoders[self.codec](data)
                 self.relayData(data)
             elif opcode == CLOSE:
+                #print "CLOSE opcode sent"
                 self.close()
     def dataReceived(self, data):
         self.buf += data
@@ -273,7 +286,7 @@ class RawWebSocket(ProtocolWrapper):
             end = self.buf.find("\xFF",start+1)
             if end == -1:
                 break
-            frame = buf[start+1:end]
+            frame = self.buf[start+1:end]
             frames.append((NORMAL, frame))
             tail = end + 1
             start = self.buf.find("\x00", tail)

@@ -31,6 +31,7 @@ class JSONP(SessionProtocol):
     allowedMethods = ['OPTIONS','GET']
     contentType = 'application/javascript; charset=UTF-8'
     chunked = False
+    written = False
     def prepConnection(self):
         if not self.query or 'c' not in self.query:
             self.sendHeaders({'status': '500 Internal Server Error'})
@@ -39,21 +40,32 @@ class JSONP(SessionProtocol):
             return True
         self.sendHeaders()
     def write(self, data):
-        packet = "%s(\"%s\");\r\n" % (self.query['c'][0], quote(data))
+        if self.written:
+            self.wrappedProtocol.requeue([data])
+            return
+        packet = "%s(\"%s\");\r\n" % (self.query['c'][0], data.replace('"','\\"'))
         SessionProtocol.write(self, packet)
-    def writeSequence(self, data):
-        for d in data:
-            self.write(d)
+        self.written = True
         self.loseConnection()
+    def writeSequence(self, data):
+        self.write(data.pop(0))
+        self.wrappedProtocol.requeue(data)
 
 class JSONPSend(SessionProtocol):
     allowedMethods = ['OPTIONS','POST']
     contentType = 'text/plain; charset=UTF-8'
     writeOnly = True
     def sendBody(self):
-        SessionProtocol.write('ok')
+        self.sendHeaders({'Content-Length':'2'})
+        SessionProtocol.write(self, 'ok')
     def dataReceived(self, data):
-        if self.headers['Content-Type'] == 'application/x-www-form-urlencoded':
+        self.buf += data
+        if 'Content-Length' in self.headers and len(self.buf) < int(self.headers['Content-Length']):
+            return
+        data = self.buf
+        self.buf = ""
+        del self.headers['Content-Length']
+        if 'Content-Type' in self.headers and self.headers['Content-Type'] == 'application/x-www-form-urlencoded':
             query = parse_qs(data, True)
             data = query.get('d',[''])[0]
         SessionProtocol.dataReceived(self, data)

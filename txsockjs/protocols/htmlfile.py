@@ -24,12 +24,10 @@
 # OF THE POSSIBILITY OF SUCH DAMAGE.
 
 from txsockjs.protocols.base import SessionProtocol
-from urllib import quote
 
 class HTMLFile(SessionProtocol):
     allowedMethods = ['OPTIONS','GET']
     contentType = 'text/html; charset=UTF-8'
-    chunked = False
     sent = 0
     def prepConnection(self):
         if not self.query or 'c' not in self.query:
@@ -50,10 +48,10 @@ class HTMLFile(SessionProtocol):
     c.start();
     function p(d) {c.message(d);};
     window.onload = function() {c.stop();};
-  </script>
-''' % self.query['c'][0])
+  </script>%s
+''' % (self.query['c'][0], ' '*1024))
     def write(self, data):
-        packet = '<script>\np("%s");\n</script>\r\n' % quote(data)
+        packet = '<script>\np("%s");\n</script>\r\n' % data.replace('"','\\"')
         self.sent += len(packet)
         SessionProtocol.write(self, packet)
         if self.sent > self.factory.options['streaming_limit']:
