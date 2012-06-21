@@ -1,9 +1,7 @@
 from twisted.internet.protocol import Factory
 from twisted.protocols.basic import LineReceiver
-from twisted.internet import reactor, ssl
-from txws import WebSocketFactory
+from twisted.internet import reactor
 from txsockjs.factory import SockJSFactory
-from OpenSSL import SSL
 
 class Chat(LineReceiver):
     def __init__(self, users):

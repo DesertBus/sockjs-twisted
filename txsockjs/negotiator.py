@@ -26,8 +26,6 @@
 from zope.interface import directlyProvides, providedBy
 from twisted.internet.protocol import Protocol
 from twisted.protocols.policies import ProtocolWrapper
-#from twisted.python import log
-from txsockjs.constants import methods
 from txsockjs import utils
 
 REQUEST, NEGOTIATING, ROUTED = range(3)
@@ -90,7 +88,7 @@ class SockJSNegotiator(ProtocolWrapper):
         prefix, self.session, method, self.query = utils.parsePath(self.location,self.factory.routes.keys())
         self.factory = self.factory.resolvePrefix(prefix)
         if self.factory is None:
-            method = methods['ERROR404']
+            method = utils.methods['ERROR404']
         #print("Negotiator location is %s" % self.location)
         #print("Negotiator factory is %s" % self.factory.__class__.__name__)
         #print("Negotiator protocol is %s" % method.__name__)
