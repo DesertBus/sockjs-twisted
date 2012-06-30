@@ -7,9 +7,9 @@ A simple library for adding SockJS support to your twisted application.
 Status
 ======
 
-SockJS-Twisted passes all `SockJS-Protocol <https://github.com/sockjs/sockjs-protocol>`_ tests
-except for returning the ``transfer-encoding: chunked`` header for websockets, as well as not
-supporting ``Connection: Keep-Alive``.
+SockJS-Twisted passes all `SockJS-Protocol v0.3 <https://github.com/sockjs/sockjs-protocol>`_ tests
+except for not supporting ``Connection: Keep-Alive``. There are no plans to support ``Connection: Keep-Alive``
+at this time, and it should not negatively impact any applications using SockJS-Twisted.
 
 SockJS-Twisted has been tested with the sample chat application in the tests directory, and it
 has been shown to work on all supported transports on Chrome, Firefox, Internet Explorer, Safari,

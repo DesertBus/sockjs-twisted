@@ -47,14 +47,15 @@ class WebSocket(RawWebSocket):
         if not self.method in self.allowedMethods:
             self.sendHeaders({
                 'status': '405 Method Not Allowed',
-                'Allow': ', '.join(self.allowedMethods)
+                'Allow': ', '.join(self.allowedMethods),
+                'Connection': 'close'
             })
             self.transport.write("\r\n")
         elif not self.headers.get("Upgrade","").lower() == "websocket":
-            self.sendHeaders({'status':'400 Bad Request'})
+            self.sendHeaders({'status':'400 Bad Request','Connection': 'close'})
             self.transport.write('Can "Upgrade" only to "WebSocket".'+"\r\n")
         elif not "Upgrade" in self.headers.get("Connection", ""):
-            self.sendHeaders({'status':'400 Bad Request'})
+            self.sendHeaders({'status':'400 Bad Request','Connection': 'close'})
             self.transport.write('Can "Upgrade" only to "WebSocket".'+"\r\n")
         self.transport.loseConnection()
     def close(self, code = 3000, reason = "Go away!"):
