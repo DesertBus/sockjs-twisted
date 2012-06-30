@@ -128,7 +128,7 @@ class SessionProtocol(ProtocolWrapper):
         h = ''
         if 'status' in headers:
             h += "HTTP/1.1 %s\r\n" % headers['status']
-            print "HTTP/1.1 %s %s" % (headers['status'], self.location)
+            #print "HTTP/1.1 %s %s" % (headers['status'], self.location)
             del headers['status']
         for k, v in headers.iteritems():
             h += "%s: %s\r\n" % (k, v)
@@ -153,7 +153,7 @@ class SessionProtocol(ProtocolWrapper):
         ret = self.wrappedProtocol.dataReceived(self.buf)
         self.buf = ""
         if ret:
-            print ret
+            #print ret
             ret += "\r\n"
             self.sendHeaders({'status':'500 Internal Server Error','Content-Length':str(len(ret))})
             self.transport.write(ret)
