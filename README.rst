@@ -25,7 +25,7 @@ Usage
 Use ``txsockjs.factory.SockJSFactory`` to wrap your factories. That's it!
 
     >>> from txsockjs.factory import SockJSFactory
-	>>> reactor.listenTCP(8080, SockJSFactory(factory_to_wrap))
+    >>> reactor.listenTCP(8080, SockJSFactory(factory_to_wrap))
 
 There is nothing else to it, no special setup involved.
 
