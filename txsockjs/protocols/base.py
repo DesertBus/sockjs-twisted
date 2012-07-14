@@ -38,9 +38,9 @@ def normalize(s):
     elif isinstance(s, unicode):
         return s.encode('utf-8', 'backslashreplace')
     else:
-        if s.decode('utf-8', 'ignore').encode('utf-8', 'ignore') == s:
-            return s.decode('utf-8', 'replace').encode('utf-8', 'backslashreplace')
-        else:
+        if s.decode('utf-8', 'ignore').encode('utf-8', 'ignore') == s: # Ensure s is a valid UTF-8 string
+            return s
+        else: # Otherwise assume it is Windows 1252
             return s.decode('cp1252', 'replace').encode('utf-8', 'backslashreplace')
 
 class SessionProtocol(ProtocolWrapper):
