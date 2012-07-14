@@ -29,6 +29,20 @@ from twisted.internet.protocol import Protocol
 from twisted.protocols.policies import ProtocolWrapper
 import json, Cookie, urllib
 
+def normalize(s):
+    if not isinstance(s, basestring):
+        try:
+            return str(s)
+        except UnicodeEncodeError:
+            return unicode(s).encode('utf-8','backslashreplace')
+    elif isinstance(s, unicode):
+        return s.encode('utf-8', 'backslashreplace')
+    else:
+        if s.decode('utf-8', 'ignore').encode('utf-8', 'ignore') == s:
+            return s.decode('utf-8', 'replace').encode('utf-8', 'backslashreplace')
+        else:
+            return s.decode('cp1252', 'replace').encode('utf-8', 'backslashreplace')
+
 class SessionProtocol(ProtocolWrapper):
     allowedMethods = ['OPTIONS']
     contentType = 'text/plain; charset=UTF-8'
@@ -128,7 +142,6 @@ class SessionProtocol(ProtocolWrapper):
         h = ''
         if 'status' in headers:
             h += "HTTP/1.1 %s\r\n" % headers['status']
-            #print "HTTP/1.1 %s %s" % (headers['status'], self.location)
             del headers['status']
         for k, v in headers.iteritems():
             h += "%s: %s\r\n" % (k, v)
@@ -137,7 +150,6 @@ class SessionProtocol(ProtocolWrapper):
         if not self.chunked or self.writeOnly or self.version != 'HTTP/1.1':
             self.transport.write(data)
         else:
-            #print "SENDING CHUNKED DATA - LEN = %d" % len(data)
             self.transport.write("%X\r\n%s\r\n" % (len(data), data))
     def loseConnection(self):
         if self.chunked and not self.writeOnly and self.version == 'HTTP/1.1':
@@ -153,7 +165,6 @@ class SessionProtocol(ProtocolWrapper):
         ret = self.wrappedProtocol.dataReceived(self.buf)
         self.buf = ""
         if ret:
-            #print ret
             ret += "\r\n"
             self.sendHeaders({'status':'500 Internal Server Error','Content-Length':str(len(ret))})
             self.transport.write(ret)
@@ -172,6 +183,8 @@ class RelayProtocol(ProtocolWrapper):
         self.pending = []
         self.buffer = []
         self.attached = False
+        self.peer = None
+        self.host = None
         self.connecting = True
         self.disconnecting = False
         
@@ -186,6 +199,8 @@ class RelayProtocol(ProtocolWrapper):
         directlyProvides(self, providedBy(transport))
         Protocol.makeConnection(self, transport)
         self.attached = True
+        self.peer = self.transport.getPeer()
+        self.host = self.transport.getHost()
         if self.timeout.active():
             self.timeout.cancel()
         self.sendData()
@@ -200,9 +215,12 @@ class RelayProtocol(ProtocolWrapper):
         self.attached = False
         self.timeout = reactor.callLater(self.factory.options['timeout'], self.disconnect)
     def write(self, data):
+        data = normalize(data)
         self.buffer.append(data)
         self.sendData()
     def writeSequence(self, data):
+        for p in data:
+            p = normalize(p)
         self.buffer.extend(data)
         self.sendData()
     def sendData(self):
@@ -236,7 +254,25 @@ class RelayProtocol(ProtocolWrapper):
         try:
             packets = json.loads(data)
             for p in packets:
+                p = normalize(p)
                 self.wrappedProtocol.dataReceived(p)
             return None
         except ValueError:
             return "Broken JSON encoding."
+    def getPeer(self):
+        return self.peer
+    def getHost(self):
+        return self.host
+    def registerProducer(self, producer, streaming):
+        if self.transport:
+            self.transport.registerProducer(producer, streaming)
+    def unregisterProducer(self):
+        if self.transport:
+            self.transport.unregisterProducer()
+    def stopConsuming(self):
+        if self.transport:
+            self.transport.stopConsuming()
+    #def pauseProducing(self):
+    #    pass
+    #def __getattr__(self, name):
+    #    return getattr(self.transport, name) if self.transport else None

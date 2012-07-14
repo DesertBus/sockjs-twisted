@@ -52,6 +52,7 @@ from twisted.web.http import datetimeToString
 from twisted.protocols.policies import ProtocolWrapper
 from zope.interface import directlyProvides, providedBy
 from twisted.internet.protocol import Protocol
+from txsockjs.protocols.base import normalize
 
 REQUEST, CHALLENGE, FRAMES = range(3)
 HIXIE75, HYBI00, HYBI07, HYBI10, RFC6455 = range(5)
@@ -114,13 +115,12 @@ class RawWebSocket(ProtocolWrapper):
     def failConnect(self):
         self.transport.loseConnection()
     def loseConnection(self):
-        #print "Aborting connection"
         self.close()
     def connectionLost(self, reason):
-        #print "%s lost connection because %s" % (self.getType(), str(reason))
         if self.wrappedProtocol:
             self.wrappedProtocol.connectionLost(reason)
     def relayData(self, data):
+        data = normalize(data)
         self.wrappedProtocol.dataReceived(data)
     def isWebsocket(self):
         return ("Upgrade" in self.headers.get("Connection", "") and self.headers.get("Upgrade").lower() == "websocket")
@@ -225,7 +225,6 @@ class RawWebSocket(ProtocolWrapper):
         try:
             frames = parser()
         except:
-            #print "Frame parse error"
             self.close()
             return
         for frame in frames:
@@ -235,7 +234,6 @@ class RawWebSocket(ProtocolWrapper):
                     data = decoders[self.codec](data)
                 self.relayData(data)
             elif opcode == CLOSE:
-                #print "CLOSE opcode sent"
                 self.close()
     def dataReceived(self, data):
         self.buf += data

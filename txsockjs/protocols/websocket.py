@@ -25,17 +25,20 @@
 
 import json
 from txsockjs.protocols.rawwebsocket import RawWebSocket
+from txsockjs.protocols.base import normalize
 
 class WebSocket(RawWebSocket):
     def write(self, data):
+        data = normalize(data)
         RawWebSocket.write(self, "a"+json.dumps([data]))
     def writeSequence(self, data):
+        for d in data:
+            d = normalize(d)
         RawWebSocket.write(self, "a"+json.dumps(data))
     def relayData(self, data):
         if data == '':
             return
         try:
-            #print "%s >>> %s" % (self.getType(), data)
             packets = json.loads(data)
             for p in packets:
                 RawWebSocket.relayData(self,p)
@@ -50,7 +53,7 @@ class WebSocket(RawWebSocket):
                 'Allow': ', '.join(self.allowedMethods),
                 'Connection': 'close'
             })
-            self.transport.write("\r\n")
+            self.transport.write("")
         elif not self.headers.get("Upgrade","").lower() == "websocket":
             self.sendHeaders({'status':'400 Bad Request','Connection': 'close'})
             self.transport.write('Can "Upgrade" only to "WebSocket".'+"\r\n")
