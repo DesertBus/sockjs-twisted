@@ -29,7 +29,7 @@ from twisted.internet.protocol import Protocol
 from twisted.protocols.policies import ProtocolWrapper
 import json, Cookie, urllib
 
-def normalize(s):
+def normalize(s, encoding):
     if not isinstance(s, basestring):
         try:
             return str(s)
@@ -41,7 +41,7 @@ def normalize(s):
         if s.decode('utf-8', 'ignore').encode('utf-8', 'ignore') == s: # Ensure s is a valid UTF-8 string
             return s
         else: # Otherwise assume it is Windows 1252
-            return s.decode('cp1252', 'replace').encode('utf-8', 'backslashreplace')
+            return s.decode(encoding, 'replace').encode('utf-8', 'backslashreplace')
 
 class SessionProtocol(ProtocolWrapper):
     allowedMethods = ['OPTIONS']
@@ -215,12 +215,12 @@ class RelayProtocol(ProtocolWrapper):
         self.attached = False
         self.timeout = reactor.callLater(self.factory.options['timeout'], self.disconnect)
     def write(self, data):
-        data = normalize(data)
+        data = normalize(data, self.factory.options['encoding'])
         self.buffer.append(data)
         self.sendData()
     def writeSequence(self, data):
         for p in data:
-            p = normalize(p)
+            p = normalize(p, self.factory.options['encoding'])
         self.buffer.extend(data)
         self.sendData()
     def sendData(self):
@@ -254,7 +254,7 @@ class RelayProtocol(ProtocolWrapper):
         try:
             packets = json.loads(data)
             for p in packets:
-                p = normalize(p)
+                p = normalize(p, self.factory.options['encoding'])
                 self.wrappedProtocol.dataReceived(p)
             return None
         except ValueError:

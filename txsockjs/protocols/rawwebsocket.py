@@ -120,7 +120,7 @@ class RawWebSocket(ProtocolWrapper):
         if self.wrappedProtocol:
             self.wrappedProtocol.connectionLost(reason)
     def relayData(self, data):
-        data = normalize(data)
+        data = normalize(data, self.factory.options['encoding'])
         self.wrappedProtocol.dataReceived(data)
     def isWebsocket(self):
         return ("Upgrade" in self.headers.get("Connection", "") and self.headers.get("Upgrade").lower() == "websocket")

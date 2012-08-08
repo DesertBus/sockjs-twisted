@@ -29,11 +29,11 @@ from txsockjs.protocols.base import normalize
 
 class WebSocket(RawWebSocket):
     def write(self, data):
-        data = normalize(data)
+        data = normalize(data, self.factory.options['encoding'])
         RawWebSocket.write(self, "a"+json.dumps([data]))
     def writeSequence(self, data):
         for d in data:
-            d = normalize(d)
+            d = normalize(d, self.factory.options['encoding'])
         RawWebSocket.write(self, "a"+json.dumps(data))
     def relayData(self, data):
         if data == '':

@@ -39,7 +39,8 @@ class SockJSFactory(WrappingFactory):
             'cookie_needed': False,
             'heartbeat': 25,
             'timeout': 5,
-            'streaming_limit': 128 * 1024
+            'streaming_limit': 128 * 1024,
+            'encoding': 'cp1252' #Latin1
         }
         self.sessions = {}
         self.routes = {'':self}

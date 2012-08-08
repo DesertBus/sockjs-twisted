@@ -24,8 +24,10 @@ Usage
 
 Use ``txsockjs.factory.SockJSFactory`` to wrap your factories. That's it!
 
-    >>> from txsockjs.factory import SockJSFactory
-    >>> reactor.listenTCP(8080, SockJSFactory(factory_to_wrap))
+.. code-block:: python
+
+    from txsockjs.factory import SockJSFactory
+    reactor.listenTCP(8080, SockJSFactory(factory_to_wrap))
 
 There is nothing else to it, no special setup involved.
 
@@ -37,11 +39,13 @@ Advanced Usage
 For those who want to host multiple SockJS services off of one port,
 ``txsockjs.factory.SockJSMultiFactory`` is designed to handle routing for you.
 
-    >>> from txsockjs.factory import SockJSMultiFactory
-    >>> f = SockJSMultiFactory()
-    >>> f.addFactory(EchoFactory(), "echo")
-    >>> f.addFactory(ChatFactory(), "chat")
-    >>> reactor.listenTCP(8080, f)
+.. code-block:: python
+
+    from txsockjs.factory import SockJSMultiFactory
+    f = SockJSMultiFactory()
+    f.addFactory(EchoFactory(), "echo")
+    f.addFactory(ChatFactory(), "chat")
+    reactor.listenTCP(8080, f)
 
 http://localhost:8080/echo and http://localhost:8080/chat will give you access
 to your EchoFactory and ChatFactory.
@@ -51,25 +55,36 @@ Options
 
 A dictionary of options can be passed into the factory to control SockJS behavior.
 
-    >>> options = {
-    >>>     'websocket': True,
-    >>>     'cookie_needed': False,
-    >>>     'heartbeat': 25,
-    >>>     'timeout': 5,
-    >>>     'streaming_limit': 128 * 1024
-    >>> }
-    >>> SockJSFactory(factory_to_wrap, options)
-    >>> SockJSMultiFactory().addFactory(factory_to_wrap, prefix, options)
+.. code-block:: python
 
-**websocket** - whether websockets are supported as a protocol. Useful for proxies or load balancers that don't support websockets.
+    options = {
+        'websocket': True,
+        'cookie_needed': False,
+        'heartbeat': 25,
+        'timeout': 5,
+        'streaming_limit': 128 * 1024,
+        'encoding': 'cp1252' # Latin1
+    }
+    SockJSFactory(factory_to_wrap, options)
+    SockJSMultiFactory().addFactory(factory_to_wrap, prefix, options)
 
-**cookie_needed** - whether the JSESSIONID cookie is set. Results in less performant protocols being used, so don't require them unless your load balancer requires it.
+websocket :
+    whether websockets are supported as a protocol. Useful for proxies or load balancers that don't support websockets.
 
-**heartbeat** - how often a heartbeat message is sent to keep the connection open. Do not increase this unless you know what you are doing.
+cookie_needed :
+    whether the JSESSIONID cookie is set. Results in less performant protocols being used, so don't require them unless your load balancer requires it.
 
-**timeout** - maximum delay between connections before the underlying protocol is disconnected
+heartbeat :
+    how often a heartbeat message is sent to keep the connection open. Do not increase this unless you know what you are doing.
 
-**streaming_limit** - how many bytes can be sent over a streaming protocol before it is cycled. Allows browser-side garbage collection to lower RAM usage.
+timeout :
+    maximum delay between connections before the underlying protocol is disconnected
+
+streaming_limit :
+    how many bytes can be sent over a streaming protocol before it is cycled. Allows browser-side garbage collection to lower RAM usage.
+
+encoding :
+    All messages to and from txsockjs should be valid UTF-8. In the event that a message received by txsockjs is not UTF-8, fall back to this encoding.
 
 Caveats
 =======
