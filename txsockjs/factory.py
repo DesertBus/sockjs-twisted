@@ -87,8 +87,8 @@ class SockJSResource(resource.Resource):
     """
     isLeaf = True
 
-    def __init__(self, factory):
-        self._factory = SockJSFactory(factory)
+    def __init__(self, factory, options = None):
+        self._factory = SockJSFactory(factory, options)
 
 
     def render(self, request):
