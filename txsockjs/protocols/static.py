@@ -104,7 +104,7 @@ class Greeting(Static):
 
 
 class Info(Static):
-    allowedMethods = ['OPTIONS','GET']\
+    allowedMethods = ['OPTIONS','GET']
 
     def send(self):
         if not Static.send(self):
