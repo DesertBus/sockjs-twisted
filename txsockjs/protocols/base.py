@@ -79,7 +79,7 @@ class SessionProtocol(ProtocolWrapper):
             if self.session in self.factory.sessions:
                 self.wrappedProtocol = self.factory.sessions[self.session]
             else:
-                self.wrappedProtocol = RelayProtocol(self.factory, self.factory.wrappedFactory.buildProtocol(self.transport.addr), self.session)
+                self.wrappedProtocol = RelayProtocol(self.factory, self.factory.wrappedFactory.buildProtocol(self.transport.addr), self.session, self)
             
             if self.wrappedProtocol.attached:
                 self.wrappedProtocol = None
@@ -175,7 +175,7 @@ class SessionProtocol(ProtocolWrapper):
         self.sendHeaders()
         
 class RelayProtocol(ProtocolWrapper):
-    def __init__(self, factory, protocol, session):
+    def __init__(self, factory, protocol, session, transport):
         self.session = session
         self.wrappedProtocol = protocol
         self.factory = factory
@@ -183,8 +183,8 @@ class RelayProtocol(ProtocolWrapper):
         self.pending = []
         self.buffer = []
         self.attached = False
-        self.peer = None
-        self.host = None
+        self.peer = transport.getPeer()
+        self.host = transport.getHost()
         self.connecting = True
         self.disconnecting = False
         

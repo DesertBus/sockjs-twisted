@@ -25,6 +25,7 @@
 
 from twisted.protocols.policies import WrappingFactory
 from twisted.internet.protocol import ClientFactory
+from twisted.web import resource, server
 from txsockjs.negotiator import SockJSNegotiator
 from txsockjs.utils import validatePrefix
 
@@ -77,3 +78,30 @@ class SockJSMultiFactory(ClientFactory):
         if prefix in self.routes:
             return self.routes[prefix]
         return None
+
+
+
+class SockJSResource(resource.Resource):
+    """
+    A resource that defers to a SockJS factory.
+    """
+    isLeaf = True
+
+    def __init__(self, factory, options = None):
+        self._factory = SockJSFactory(factory, options)
+
+
+    def render(self, request):
+        transport, request.transport = request.transport, None
+        protocol = self._factory.buildProtocol(transport.getPeer())
+        protocol.makeConnection(transport)
+
+        path = "/".join([""] + request.postpath)
+        lines = ["{0} {1} HTTP/1.1".format(request.method, path)]
+        for name, values in request.requestHeaders.getAllRawHeaders():
+            lines.append("{0}: {1}".format(name, ",".join(values)))
+        lines += ["", request.content.read()]
+
+        protocol.dataReceived("\r\n".join(lines))
+
+        return server.NOT_DONE_YET
