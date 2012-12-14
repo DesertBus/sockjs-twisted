@@ -23,49 +23,41 @@
 # OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
 # OF THE POSSIBILITY OF SUCH DAMAGE.
 
-from txsockjs.protocols.base import SessionProtocol
-from urlparse import parse_qs
-from urllib import quote
+from twisted.web import http
+from txsockjs.protocols.base import StubResource
 
-class JSONP(SessionProtocol):
-    allowedMethods = ['OPTIONS','GET']
-    contentType = 'application/javascript; charset=UTF-8'
-    chunked = False
+class JSONP(StubResource):
     written = False
-    def prepConnection(self):
-        if not self.query or 'c' not in self.query:
-            self.sendHeaders({'status': '500 Internal Server Error'})
-            SessionProtocol.write(self, '"callback" parameter required')
-            self.loseConnection()
-            return True
-        self.sendHeaders()
+    
+    def render_GET(self, request):
+        self.parent.setBaseHeaders(request)
+        self.callback = request.args.get('c',[None])[0]
+        if self.callback is None:
+            request.setResponseCode(http.INTERNAL_SERVER_ERROR)
+            return '"callback" parameter required'
+        request.setHeader('content-type', 'application/javascript; charset=UTF-8')
+        return self.connect(request)
+    
     def write(self, data):
         if self.written:
-            self.wrappedProtocol.requeue([data])
+            self.session.requeue([data])
             return
-        packet = "%s(\"%s\");\r\n" % (self.query['c'][0], data.replace('\\','\\\\').replace('"','\\"'))
-        SessionProtocol.write(self, packet)
         self.written = True
-        self.loseConnection()
+        self.request.write("{}(\"{}\");\r\n".format(self.callback, data.replace('\\','\\\\').replace('"','\\"')))
+        self.disconnect()
+    
     def writeSequence(self, data):
         self.write(data.pop(0))
-        self.wrappedProtocol.requeue(data)
+        self.session.requeue(data)
 
-class JSONPSend(SessionProtocol):
-    allowedMethods = ['OPTIONS','POST']
-    contentType = 'text/plain; charset=UTF-8'
-    writeOnly = True
-    def sendBody(self):
-        self.sendHeaders({'Content-Length':'2'})
-        SessionProtocol.write(self, 'ok')
-    def dataReceived(self, data):
-        self.buf += data
-        if 'Content-Length' in self.headers and len(self.buf) < int(self.headers['Content-Length']):
-            return
-        data = self.buf
-        self.buf = ""
-        del self.headers['Content-Length']
-        if 'Content-Type' in self.headers and self.headers['Content-Type'] == 'application/x-www-form-urlencoded':
-            query = parse_qs(data, True)
-            data = query.get('d',[''])[0]
-        SessionProtocol.dataReceived(self, data)
+class JSONPSend(StubResource):
+    def render_POST(self, request):
+        self.parent.setBaseHeaders(request)
+        request.setHeader('content-type', 'text/plain; charset=UTF-8')
+        urlencoded = request.getHeader("Content-Type") == 'application/x-www-form-urlencoded'
+        data = request.args.get('d', [''])[0] if urlencoded else request.content.read()
+        ret = self.session.dataReceived(data)
+        if not ret:
+            return "ok"
+        request.setResponseCode(http.INTERNAL_SERVER_ERROR)
+        return "{}\r\n".format(ret)

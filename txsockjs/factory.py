@@ -23,85 +23,105 @@
 # OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
 # OF THE POSSIBILITY OF SUCH DAMAGE.
 
-from twisted.protocols.policies import WrappingFactory
-from twisted.internet.protocol import ClientFactory
 from twisted.web import resource, server
-from txsockjs.negotiator import SockJSNegotiator
-from txsockjs.utils import validatePrefix
+from txsockjs.protocols.base import Stub
+from txsockjs.protocols.eventsource import EventSource
+from txsockjs.protocols.htmlfile import HTMLFile
+from txsockjs.protocols.jsonp import JSONP, JSONPSend
+from txsockjs.protocols.static import Info, IFrame
+from txsockjs.protocols.websocket import RawWebSocket, WebSocket
+from txsockjs.protocols.xhr import XHR, XHRSend, XHRStream
 
-class SockJSFactory(WrappingFactory):
-    options = None
-    sessions = None
-    routes = None
-    protocol = SockJSNegotiator
+class SockJSFactory(server.Site):
     def __init__(self, factory, options = None):
-        self.options = {
+        server.Site.__init__(self, SockJSResource(factory, options))
+
+class SockJSMultiFactory(server.Site):
+    def __init__(self):
+        server.Site.__init__(self, resource.Resource())
+    
+    def addFactory(self, factory, prefix, options = None):
+        self.resource.putChild(prefix, SockJSResource(factory, options))
+
+class SockJSResource(resource.Resource):
+    def __init__(self, factory, options = None):
+        resource.Resource.__init__(self)
+        self._factory = factory
+        self._sessions = {}
+        self._options = {
             'websocket': True,
             'cookie_needed': False,
             'heartbeat': 25,
             'timeout': 5,
             'streaming_limit': 128 * 1024,
-            'encoding': 'cp1252' #Latin1
+            'encoding': 'cp1252', #Latin1
+            'sockjs_url': 'https://d1fxtkz8shb9d2.cloudfront.net/sockjs-0.3.js'
         }
-        self.sessions = {}
-        self.routes = {'':self}
-        self.wrappedFactory = factory
-        
         if options is not None:
-            self.options.update(options)
-    def buildProtocol(self, addr):
-        return self.protocol(self, addr)
-    def registerProtocol(self, p):
-        self.sessions[p.session] = p
-    def unregisterProtocol(self, p):
-        if p.session in self.sessions:
-            del self.sessions[p.session]
-    def resolvePrefix(self, prefix):
-        return self
-
-class SockJSMultiFactory(ClientFactory):
-    routes = None
-    protocol = SockJSNegotiator
-    def __init__(self):
-        self.routes = {}
-    def doStop(self):
-        for factory in self.routes.itervalues():
-            factory.doStop()
-        ClientFactory.doStop(self)
-    def buildProtocol(self, addr):
-        return self.protocol(self, addr)
-    def addFactory(self, factory, prefix, options = None):
-        if not validatePrefix(prefix):
-            raise ValueError()
-        self.routes[prefix] = SockJSFactory(factory, options)
-    def resolvePrefix(self, prefix):
-        if prefix in self.routes:
-            return self.routes[prefix]
-        return None
-
-
-
-class SockJSResource(resource.Resource):
-    """
-    A resource that defers to a SockJS factory.
-    """
-    isLeaf = True
-
-    def __init__(self, factory, options = None):
-        self._factory = SockJSFactory(factory, options)
-
-
-    def render(self, request):
-        transport, request.transport = request.transport, None
-        protocol = self._factory.buildProtocol(transport.getPeer())
-        protocol.makeConnection(transport)
-
-        path = "/".join([""] + request.postpath)
-        lines = ["{0} {1} HTTP/1.1".format(request.method, path)]
-        for name, values in request.requestHeaders.getAllRawHeaders():
-            lines.append("{0}: {1}".format(name, ",".join(values)))
-        lines += ["", request.content.read()]
-
-        protocol.dataReceived("\r\n".join(lines))
-
-        return server.NOT_DONE_YET
+            self._options.update(options)
+        # Just in case somebody wants to mess with these
+        self._methods = {
+            'xhr': XHR,
+            'xhr_send': XHRSend,
+            'xhr_streaming': XHRStream,
+            'eventsource': EventSource,
+            'htmlfile': HTMLFile,
+            'jsonp': JSONP,
+            'jsonp_send': JSONPSend,
+        }
+        self._writeMethods = ('xhr_send','jsonp_send')
+        # Static Resources
+        self.putChild("",self)
+        self.putChild("info",Info())
+        self.putChild("iframe.html",IFrame())
+        self.putChild("websocket",RawWebSocket())
+        # Since it's constant, we can declare the websocket handler up here
+        self._websocket = WebSocket()
+        self._websocket.parent = self
+    
+    def getChild(self, name, request):
+        # Hacks to resove the iframe even when people are dumb
+        if len(name) > 10 and name[:6] == "iframe" and name[-5:] == ".html":
+            return self.children["iframe.html"]
+        # Sessions must have 3 parts, name is already the first. Also, no periods in the loadbalancer
+        if len(request.postpath) != 2 or "." in name or not name:
+            return resource.NoResource("No such child resource.")
+        # Extract session & request type. Discard load balancer
+        session, name = request.postpath
+        # No periods in the session
+        if "." in session or not session:
+            return resource.NoResource("No such child resource.")
+        # Websockets are a special case
+        if name == "websocket":
+            return self._websocket
+        # Reject invalid methods or writes to invalid sessions
+        if name not in self._methods or name in self._writeMethods and session not in self._sessions:
+            return resource.NoResource("No such child resource.")
+        # Generate session if doesn't exist
+        if session not in self._sessions:
+            self._sessions[session] = Stub(self, session)
+        # Delegate request to appropriate handler
+        return self._methods[name](self, self._sessions[session])
+    
+    def putChild(self, path, child):
+        child.parent = self
+        resource.Resource.putChild(self, path, child)
+    
+    def setBaseHeaders(self, request, cookie=True):
+        origin = request.getHeader("Origin")
+        headers = request.getHeader('Access-Control-Request-Headers')
+        if origin is None or origin == "null":
+            origin = "*"
+        request.setHeader('access-control-allow-origin', origin)
+        request.setHeader('access-control-allow-credentials', 'true')
+        request.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0')
+        if headers is not None:
+            request.setHeader('Access-Control-Allow-Headers', headers)
+        if self._options["cookie_needed"] and cookie:
+            cookie = request.getCookie("JSESSIONID") if request.getCookie("JSESSIONID") else "dummy"
+            request.addCookie("JSESSIONID", cookie, path="/")
+    
+    def render_GET(self, request):
+        self.setBaseHeaders(request,False)
+        request.setHeader('content-type', 'text/plain; charset=UTF-8')
+        return "Welcome to SockJS!\n"

@@ -23,21 +23,29 @@
 # OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
 # OF THE POSSIBILITY OF SUCH DAMAGE.
 
-from txsockjs.protocols.base import SessionProtocol
+from txsockjs.protocols.base import StubResource
 
-class EventSource(SessionProtocol):
-    allowedMethods = ['OPTIONS','GET']
-    contentType = 'text/event-stream; charset=UTF-8'
+class EventSource(StubResource):
     sent = 0
-    def prepConnection(self):
-        self.sendHeaders()
-        SessionProtocol.write(self, "\r\n")
+    done = False
+    
+    def render_GET(self, request):
+        self.parent.setBaseHeaders(request)
+        request.setHeader('content-type', 'text/event-stream; charset=UTF-8')
+        request.write("\r\n")
+        return self.connect(request)
+    
     def write(self, data):
-        packet = "data: %s\r\n\r\n" % data
+        if self.done:
+            self.session.requeue([data])
+            return
+        packet = "data: {}\r\n\r\n".format(data)
         self.sent += len(packet)
-        SessionProtocol.write(self, packet)
-        if self.sent > self.factory.options['streaming_limit']:
-            self.loseConnection()
+        self.request.write(packet)
+        if self.sent > self.parent._options['streaming_limit']:
+            self.done = True
+            self.disconnect()
+    
     def writeSequence(self, data):
         for d in data:
             self.write(d)

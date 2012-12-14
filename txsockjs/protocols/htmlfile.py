@@ -23,20 +23,21 @@
 # OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
 # OF THE POSSIBILITY OF SUCH DAMAGE.
 
-from txsockjs.protocols.base import SessionProtocol
+from twisted.web import http
+from txsockjs.protocols.base import StubResource
 
-class HTMLFile(SessionProtocol):
-    allowedMethods = ['OPTIONS','GET']
-    contentType = 'text/html; charset=UTF-8'
+class HTMLFile(StubResource):
     sent = 0
-    def prepConnection(self):
-        if not self.query or 'c' not in self.query:
-            self.sendHeaders({'status': '500 Internal Server Error'})
-            SessionProtocol.write(self, '"callback" parameter required')
-            self.loseConnection()
-            return True
-        self.sendHeaders()
-        SessionProtocol.write(self, r'''
+    done = False
+    
+    def render_GET(self, request):
+        self.parent.setBaseHeaders(request)
+        callback = request.args.get('c',[None])[0]
+        if callback is None:
+            request.setResponseCode(http.INTERNAL_SERVER_ERROR)
+            return '"callback" parameter required'
+        request.setHeader('content-type', 'text/html; charset=UTF-8')
+        request.write(r'''
 <!doctype html>
 <html><head>
   <meta http-equiv="X-UA-Compatible" content="IE=edge" />
@@ -44,18 +45,25 @@ class HTMLFile(SessionProtocol):
 </head><body><h2>Don't panic!</h2>
   <script>
     document.domain = document.domain;
-    var c = parent.%s;
+    var c = parent.{};
     c.start();
-    function p(d) {c.message(d);};
-    window.onload = function() {c.stop();};
-  </script>%s
-''' % (self.query['c'][0], ' '*1024))
+    function p(d) {{c.message(d);}};
+    window.onload = function() {{c.stop();}};
+  </script>{}
+'''.format(callback, ' '*1024))
+        return self.connect(request)
+    
     def write(self, data):
-        packet = "<script>\np(\"%s\");\n</script>\r\n" % data.replace('\\','\\\\').replace('"','\\"')
+        if self.done:
+            self.session.requeue([data])
+            return
+        packet = "<script>\np(\"{}\");\n</script>\r\n".format(data.replace('\\','\\\\').replace('"','\\"'))
         self.sent += len(packet)
-        SessionProtocol.write(self, packet)
-        if self.sent > self.factory.options['streaming_limit']:
-            self.loseConnection()
+        self.request.write(packet)
+        if self.sent > self.parent._options['streaming_limit']:
+            self.done = True
+            self.disconnect()
+    
     def writeSequence(self, data):
         for d in data:
             self.write(d)
