@@ -71,7 +71,6 @@ class SockJSResource(resource.Resource):
         }
         self._writeMethods = ('xhr_send','jsonp_send')
         # Static Resources
-        self.putChild("",self)
         self.putChild("info",Info())
         self.putChild("iframe.html",IFrame())
         self.putChild("websocket",RawWebSocket())
@@ -80,6 +79,9 @@ class SockJSResource(resource.Resource):
         self._websocket.parent = self
     
     def getChild(self, name, request):
+        # Check if it is the greeting url
+        if not name and not request.postpath:
+            return self
         # Hacks to resove the iframe even when people are dumb
         if len(name) > 10 and name[:6] == "iframe" and name[-5:] == ".html":
             return self.children["iframe.html"]

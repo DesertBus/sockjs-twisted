@@ -56,6 +56,7 @@ class StubResource(resource.Resource, ProtocolWrapper):
         directlyProvides(self, providedBy(request.transport))
         protocol.Protocol.makeConnection(self, request.transport)
         self.session.makeConnection(self)
+        request.notifyFinish().addErrback(self.connectionLost)
         return server.NOT_DONE_YET
     
     def disconnect(self):
@@ -66,7 +67,7 @@ class StubResource(resource.Resource, ProtocolWrapper):
         self.request.finish()
         self.session.transportLeft()
     
-    def connectionLost(self, reason):
+    def connectionLost(self, reason=None):
         self.wrappedProtocol.connectionLost(reason)
 
 class Stub(ProtocolWrapper):
@@ -77,7 +78,6 @@ class Stub(ProtocolWrapper):
         self.buffer = []
         self.connecting = True
         self.disconnecting = False
-        self.dc_reason = None
         self.attached = False
         self.transport = None # Upstream (SockJS)
         self.protocol = None # Downstream (Wrapped Factory)
@@ -100,14 +100,15 @@ class Stub(ProtocolWrapper):
         self.sendData()
     
     def loseConnection(self):
-        self.dc_reason = 'c[3000,"Go away!"]'
         self.disconnecting = True
         self.sendData()
     
-    def connectionLost(self):
-        self.dc_reason = 'c[1002,"Connection interrupted"]'
-        self.disconnecting = True
-        self.sendData()
+    def connectionLost(self, reason=None):
+        if self.attached:
+            self.disconnecting = True
+            self.transport = None
+            self.attached = False
+            self.disconnect()
     
     def heartbeat(self):
         self.pending.append('h')
@@ -141,7 +142,7 @@ class Stub(ProtocolWrapper):
                 self.connecting = False
                 self.sendData()
             elif self.disconnecting:
-                self.transport.write(self.dc_reason)
+                self.transport.write('c[3000,"Go away!"]')
                 if self.transport:
                     self.transport.loseConnection()
             else:

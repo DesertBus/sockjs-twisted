@@ -28,15 +28,20 @@ try:
 except ImportError:
     from txsockjs.websockets import WebSocketsResource
 
-from txsockjs.oldwebsockets import OldWebSocketsResource
-from twisted.web.server import NOT_DONE_YET
+from zope.interface import directlyProvides, providedBy
+from twisted.internet.protocol import Protocol
 from twisted.protocols.policies import WrappingFactory, ProtocolWrapper
+from twisted.web.server import NOT_DONE_YET
+from txsockjs.oldwebsockets import OldWebSocketsResource
 import json
 
 class JsonProtocol(ProtocolWrapper):
     def makeConnection(self, transport):
-        ProtocolWrapper.makeConnection(self, transport)
+        directlyProvides(self, providedBy(transport))
+        Protocol.makeConnection(self, transport)
         self.transport.write("o")
+        self.factory.registerProtocol(self)
+        self.wrappedProtocol.makeConnection(self)
     
     def write(self, data):
         self.writeSequence([data])
@@ -45,7 +50,7 @@ class JsonProtocol(ProtocolWrapper):
         self.transport.write("a{}".format(json.dumps(data)))
     
     def loseConnection(self):
-        self.transport.write("c{}".format(json.dumps([3000,"Go away!"])))
+        self.transport.write('c[3000,"Go away!"]')
         ProtocolWrapper.loseConnection(self)
     
     def dataReceived(self, data):
@@ -77,6 +82,7 @@ class RawWebSocket(WebSocketsResource, OldWebSocketsResource):
         if request.method != 'GET':
             request.setResponseCode(405)
             request.defaultContentType = None # SockJS wants this gone
+            request.setHeader('Allow','GET')
             return ""
         # Override handling of lack of headers, again SockJS requires non-RFC stuff
         upgrade = request.getHeader("Upgrade")
@@ -90,9 +96,7 @@ class RawWebSocket(WebSocketsResource, OldWebSocketsResource):
         # Defer to inherited methods
         ret = WebSocketsResource.render(self, request) # For RFC versions of websockets
         if ret is NOT_DONE_YET:
-            print "NEW WEBSOCKET"
             return ret
-        print "OLD WEBSOCKET"
         return OldWebSocketsResource.render(self, request) # For non-RFC versions of websockets
 
 class WebSocket(RawWebSocket):

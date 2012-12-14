@@ -209,17 +209,17 @@ class _WebSocketsProtocol(ProtocolWrapper):
     buf = ""
     codec = None
     challenge = None
+    connected = False
 
     def __init__(self, *args, **kwargs):
         ProtocolWrapper.__init__(self, *args, **kwargs)
         self._pending_frames = []
 
     def connectionMade(self):
-        ProtocolWrapper.connectionMade(self)
+        connected = True
+        if not self.challenge:
+            ProtocolWrapper.connectionMade(self)
         log.msg("Opening connection with %s" % self.transport.getPeer())
-        print "CONNECTION MADE"
-        if self.challenge:
-            reactor.callLater(5, lambda: self.dataReceived("aaaaaaaa") if self.challenge else None)
 
     def parseFrames(self):
         try:
@@ -253,19 +253,18 @@ class _WebSocketsProtocol(ProtocolWrapper):
                 frame = _encoders[self.codec](frame)
             packet = _makeFrame(frame, self.old)
             self.transport.write(packet)
-            print "SENT:", packet
         self._pending_frames = []
 
     def dataReceived(self, data):
         self.buf += data
-        print "DATA:", data
         if self.challenge:
             if len(self.buf) >= 8:
                 challenge, self.buf = self.buf[:8], self.buf[8:]
                 nonce = self.challenge(challenge)
-                print len(nonce), nonce
                 self.transport.write(nonce)
                 self.challenge = None
+                if self.connected:
+                    ProtocolWrapper.connectionMade(self)
                 self.dataReceived("") # Kick it off proper
         else:
             self.parseFrames()
@@ -282,12 +281,11 @@ class _WebSocketsProtocol(ProtocolWrapper):
 
     def loseConnection(self):
         if not self.disconnecting:
-            self.sendFrames()
-            frame = _makeFrame("", self.old, _opcode=_CONTROLS.CLOSE)
-            if frame:
-                self.transport.write(frame)
+            if not self.challenge:
+                frame = _makeFrame("", self.old, _opcode=_CONTROLS.CLOSE)
+                if frame:
+                    self.transport.write(frame)
             ProtocolWrapper.loseConnection(self)
-            print "CONNECTION LOST"
 
 class _WebSocketsFactory(WrappingFactory):
     protocol = _WebSocketsProtocol
@@ -383,29 +381,16 @@ class OldWebSocketsResource(object):
             protocol.challenge = lambda x: _challenge(request.getHeader("Sec-WebSocket-Key1"), request.getHeader("Sec-WebSocket-Key2"), x)
         if codec:
             protocol.codec = codec
-
-        ## HOLY SHIT
-        ## I"M SO TIRED OF THIS NOT WORKING
-        ## FUCK IT LET"S TRY THIS
         
         ## This must be first, since makeConnection will butcher our headers otherwise
         request.write("")
         
         ## Then we wire it into the protocol wrapper
-        request.transport.protocol = protocol
-        protocol.makeConnection(request.transport)
+        transport, request.transport = request.transport, None
+        transport.protocol = protocol
+        protocol.makeConnection(transport)
         
-        ## But then we lose data?? Where'd it go?
-        request.content.seek(0,0)
-        data = request.content.read()
-        if data:
-            print "LEFTOVER:",data
-            protcol.dataReceived(data)
-        
-        ## FINAL TRY
-        reactor.callLater(1, lambda: protocol.dataReceived(request.content.read()))
-        
-        ## Just get rid of it
-        request.transport = None
+        ## Copy the buffer
+        protocol.dataReceived(request.channel.clearLineBuffer())
         
         return NOT_DONE_YET
