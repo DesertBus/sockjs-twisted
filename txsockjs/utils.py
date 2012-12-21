@@ -36,3 +36,9 @@ def normalize(s, encoding):
             return s
         else: # Otherwise assume it is Windows 1252
             return s.decode(encoding, 'replace').encode('utf-8', 'backslashreplace')
+
+def broadcast(message, targets, encoding="cp1252"):
+    message = normalize(message, encoding)
+    message = 'a{}'.format(json.dumps([message], separators=(',',':')))
+    for t in targets:
+        t.writeRaw(message)

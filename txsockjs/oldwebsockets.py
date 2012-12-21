@@ -357,6 +357,7 @@ class OldWebSocketsResource(object):
                 failed = True
                 request.setHeader("Sec-WebSocket-Version", "13")
             if not failed:
+                request.setHeader("Sec-WebSocket-Version", version)
                 request.setHeader("Sec-WebSocket-Accept", _makeAccept(key))
                 if codec:
                     request.setHeader("Sec-WebSocket-Protocol", codec)

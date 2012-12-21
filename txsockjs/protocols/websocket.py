@@ -33,6 +33,7 @@ from twisted.internet.protocol import Protocol
 from twisted.protocols.policies import WrappingFactory, ProtocolWrapper
 from twisted.web.server import NOT_DONE_YET
 from txsockjs.oldwebsockets import OldWebSocketsResource
+from txsockjs.utils import normalize
 import json
 
 class JsonProtocol(ProtocolWrapper):
@@ -47,7 +48,12 @@ class JsonProtocol(ProtocolWrapper):
         self.writeSequence([data])
     
     def writeSequence(self, data):
-        self.transport.write("a{}".format(json.dumps(data)))
+        for p in data:
+            p = normalize(p, self.factory.parent._options['encoding'])
+        self.transport.write("a{}".format(json.dumps(data, separators=(',',':'))))
+    
+    def writeRaw(self, data):
+        self.transport.write(data)
     
     def loseConnection(self):
         self.transport.write('c[3000,"Go away!"]')
@@ -57,11 +63,13 @@ class JsonProtocol(ProtocolWrapper):
         if not data:
             return
         try:
-            data = json.loads(data)
-            for d in data:
-                ProtocolWrapper.dataReceived(self, d)
+            dat = json.loads(data)
         except ValueError:
+            print "VALUE ERROR", data
             self.transport.loseConnection()
+        else:
+            for d in dat:
+                ProtocolWrapper.dataReceived(self, d)
 
 class JsonFactory(WrappingFactory):
     protocol = JsonProtocol
@@ -102,5 +110,6 @@ class RawWebSocket(WebSocketsResource, OldWebSocketsResource):
 class WebSocket(RawWebSocket):
     def _makeFactory(self):
         f = JsonFactory(self.parent._factory)
+        f.parent = self.parent
         WebSocketsResource.__init__(self, f)
         OldWebSocketsResource.__init__(self, f)

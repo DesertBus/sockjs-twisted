@@ -135,6 +135,11 @@ class Stub(ProtocolWrapper):
         self.buffer.extend(data)
         self.sendData()
     
+    def writeRaw(self, data):
+        self.flushData()
+        self.pending.append(data)
+        self.sendData()
+    
     def sendData(self):
         if self.transport:
             if self.connecting:
@@ -154,7 +159,7 @@ class Stub(ProtocolWrapper):
     
     def flushData(self):
         if self.buffer:
-            data = 'a'+json.dumps(self.buffer, separators=(',',':'))
+            data = 'a{}'.format(json.dumps(self.buffer, separators=(',',':')))
             self.buffer = []
             self.pending.append(data)
     

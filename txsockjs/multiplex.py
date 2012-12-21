@@ -26,6 +26,7 @@
 from twisted.internet.protocol import Protocol, Factory
 from twisted.protocols.policies import ProtocolWrapper
 from txsockjs.factory import SockJSResource
+from txsockjs import utils
 
 class BroadcastProtocol(Protocol):
     def dataReceived(self, data):
@@ -49,13 +50,18 @@ class MultiplexProxy(ProtocolWrapper):
     
     def broadcast(self, data):
         self.factory.broadcast(self.topic, data)
+    
+    def loseConnection(self):
+        self.transport.transport.write(",".join(["uns", self.topic]))
 
 class MultiplexProtocol(Protocol):
     def connectionMade(self):
         self.factory._connections[self] = {}
     
     def dataReceived(self, message):
-        type, topic, payload = message.split(",", 2)
+        type, chaff, topic = message.partition(",")
+        if "," in topic:
+            topic, chaff, payload = topic.partition(",")
         if type == "sub":
             self.factory.subscribe(self, topic)
         elif type == "msg":
@@ -80,9 +86,12 @@ class MultiplexFactory(Factory):
         self._topics[name] = factory
     
     def broadcast(self, name, message):
-        for topics in self._connections.values():
+        targets = []
+        message = ",".join(["msg", name, message])
+        for p, topics in self._connections.items():
             if name in topics:
-                topics[name].write(message)
+                targets.append(p)
+        utils.broadcast(message, targets)
     
     def removeFactory(self, name, factory):
         del self._topics[name]
