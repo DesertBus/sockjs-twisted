@@ -96,14 +96,17 @@ class SockJSResource(resource.Resource):
         # Websockets are a special case
         if name == "websocket":
             return self._websocket
-        # Reject invalid methods or writes to invalid sessions
-        if name not in self._methods or name in self._writeMethods and session not in self._sessions:
+        # Reject invalid methods
+        if name not in self._methods:
             return resource.NoResource("No such child resource.")
-        # Generate session if doesn't exist
-        if session not in self._sessions:
+        # Reject writes to invalid sessions, unless just checking options
+        if name in self._writeMethods and session not in self._sessions and request.method != "OPTIONS":
+            return resource.NoResource("No such child resource.")
+        # Generate session if doesn't exist, unless just checking options
+        if session not in self._sessions and request.method != "OPTIONS":
             self._sessions[session] = Stub(self, session)
         # Delegate request to appropriate handler
-        return self._methods[name](self, self._sessions[session])
+        return self._methods[name](self, self._sessions[session] if request.method != "OPTIONS" else None)
     
     def putChild(self, path, child):
         child.parent = self

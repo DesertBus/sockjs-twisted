@@ -65,7 +65,6 @@ class JsonProtocol(ProtocolWrapper):
         try:
             dat = json.loads(data)
         except ValueError:
-            print "VALUE ERROR", data
             self.transport.loseConnection()
         else:
             for d in dat:

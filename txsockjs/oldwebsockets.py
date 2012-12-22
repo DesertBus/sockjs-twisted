@@ -210,6 +210,7 @@ class _WebSocketsProtocol(ProtocolWrapper):
     codec = None
     challenge = None
     connected = False
+    pending_dc = False
 
     def __init__(self, *args, **kwargs):
         ProtocolWrapper.__init__(self, *args, **kwargs)
@@ -238,7 +239,7 @@ class _WebSocketsProtocol(ProtocolWrapper):
             elif opcode == _CONTROLS.CLOSE:
                 reason, text = data
                 log.msg("Closing connection: %r (%d)" % (text, reason))
-                self.loseConnection()
+                self.transport.loseConnection()
                 return
             elif opcode == _CONTROLS.PING:
                 self.transport.write(_makeFrame(data, self.old, _opcode=_CONTROLS.PONG))
@@ -266,6 +267,9 @@ class _WebSocketsProtocol(ProtocolWrapper):
                 if self.connected:
                     ProtocolWrapper.connectionMade(self)
                 self.dataReceived("") # Kick it off proper
+                if self.pending_dc:
+                    self.pending_dc = False
+                    self.loseConnection()
         else:
             self.parseFrames()
             if self._pending_frames:
@@ -282,10 +286,14 @@ class _WebSocketsProtocol(ProtocolWrapper):
     def loseConnection(self):
         if not self.disconnecting:
             if not self.challenge:
+                self.disconnecting = True
                 frame = _makeFrame("", self.old, _opcode=_CONTROLS.CLOSE)
                 if frame:
                     self.transport.write(frame)
-            ProtocolWrapper.loseConnection(self)
+                else:
+                    self.transport.loseConnection()
+            else:
+                self.pending_dc = True
 
 class _WebSocketsFactory(WrappingFactory):
     protocol = _WebSocketsProtocol
@@ -348,7 +356,7 @@ class OldWebSocketsResource(object):
                 if codec:
                     request.setHeader("Sec-WebSocket-Protocol", codec)
         else:
-            old =  False
+            old = False
             key = request.getHeader("Sec-WebSocket-Key")
             if key is None:
                 failed = True
