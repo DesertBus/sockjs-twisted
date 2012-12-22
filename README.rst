@@ -61,7 +61,7 @@ Multiplexing [Experimental]
 ===========================
 
 SockJS-Twisted also has built-in support for multiplexing. See the
-``Websocket-Multiplex <https://github.com/sockjs/websocket-multiplex>``_ library
+`Websocket-Multiplex <https://github.com/sockjs/websocket-multiplex>`_ library
 for how to integrate multiplexing client side.
 
 .. code-block:: python
