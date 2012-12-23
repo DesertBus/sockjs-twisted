@@ -23,44 +23,92 @@
 # OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
 # OF THE POSSIBILITY OF SUCH DAMAGE.
 
-import json
-from txsockjs.protocols.rawwebsocket import RawWebSocket
-from txsockjs.protocols.base import normalize
+try:
+    from twisted.web.websockets import WebSocketsResource
+except ImportError:
+    from txsockjs.websockets import WebSocketsResource
 
-class WebSocket(RawWebSocket):
+from zope.interface import directlyProvides, providedBy
+from twisted.internet.protocol import Protocol
+from twisted.protocols.policies import WrappingFactory, ProtocolWrapper
+from twisted.web.server import NOT_DONE_YET
+from txsockjs.oldwebsockets import OldWebSocketsResource
+from txsockjs.utils import normalize
+import json
+
+class JsonProtocol(ProtocolWrapper):
+    def makeConnection(self, transport):
+        directlyProvides(self, providedBy(transport))
+        Protocol.makeConnection(self, transport)
+        self.transport.write("o")
+        self.factory.registerProtocol(self)
+        self.wrappedProtocol.makeConnection(self)
+    
     def write(self, data):
-        data = normalize(data, self.factory.options['encoding'])
-        RawWebSocket.write(self, "a"+json.dumps([data]))
+        self.writeSequence([data])
+    
     def writeSequence(self, data):
-        for d in data:
-            d = normalize(d, self.factory.options['encoding'])
-        RawWebSocket.write(self, "a"+json.dumps(data))
-    def relayData(self, data):
-        if data == '':
+        for p in data:
+            p = normalize(p, self.factory.parent._options['encoding'])
+        self.transport.write("a{}".format(json.dumps(data, separators=(',',':'))))
+    
+    def writeRaw(self, data):
+        self.transport.write(data)
+    
+    def loseConnection(self):
+        self.transport.write('c[3000,"Go away!"]')
+        ProtocolWrapper.loseConnection(self)
+    
+    def dataReceived(self, data):
+        if not data:
             return
         try:
-            packets = json.loads(data)
-            for p in packets:
-                RawWebSocket.relayData(self,p)
+            dat = json.loads(data)
         except ValueError:
-            RawWebSocket.close(self)
-    def prepConnection(self):
-        RawWebSocket.write(self,"o")
-    def failConnect(self):
-        if not self.method in self.allowedMethods:
-            self.sendHeaders({
-                'status': '405 Method Not Allowed',
-                'Allow': ', '.join(self.allowedMethods),
-                'Connection': 'close'
-            })
-            self.transport.write("")
-        elif not self.headers.get("Upgrade","").lower() == "websocket":
-            self.sendHeaders({'status':'400 Bad Request','Connection': 'close'})
-            self.transport.write('Can "Upgrade" only to "WebSocket".'+"\r\n")
-        elif not "Upgrade" in self.headers.get("Connection", ""):
-            self.sendHeaders({'status':'400 Bad Request','Connection': 'close'})
-            self.transport.write('Can "Upgrade" only to "WebSocket".'+"\r\n")
-        self.transport.loseConnection()
-    def close(self, code = 3000, reason = "Go away!"):
-        RawWebSocket.write(self,'c[%d,"%s"]' % (code, reason))
-        RawWebSocket.close(self)
+            self.transport.loseConnection()
+        else:
+            for d in dat:
+                ProtocolWrapper.dataReceived(self, d)
+
+class JsonFactory(WrappingFactory):
+    protocol = JsonProtocol
+
+class RawWebSocket(WebSocketsResource, OldWebSocketsResource):
+    def __init__(self):
+        self._factory = None
+    
+    def _makeFactory(self):
+        WebSocketsResource.__init__(self, self.parent._factory) 
+        OldWebSocketsResource.__init__(self, self.parent._factory) 
+    
+    def render(self, request):
+        # Get around .parent limitation
+        if self._factory is None:
+            self._makeFactory()
+        # Override handling of invalid methods, returning 400 makes SockJS mad
+        if request.method != 'GET':
+            request.setResponseCode(405)
+            request.defaultContentType = None # SockJS wants this gone
+            request.setHeader('Allow','GET')
+            return ""
+        # Override handling of lack of headers, again SockJS requires non-RFC stuff
+        upgrade = request.getHeader("Upgrade")
+        if upgrade is None or "websocket" not in upgrade.lower():
+            request.setResponseCode(400)
+            return 'Can "Upgrade" only to "WebSocket".'
+        connection = request.getHeader("Connection")
+        if connection is None or "upgrade" not in connection.lower():
+            request.setResponseCode(400)
+            return '"Connection" must be "Upgrade".'
+        # Defer to inherited methods
+        ret = WebSocketsResource.render(self, request) # For RFC versions of websockets
+        if ret is NOT_DONE_YET:
+            return ret
+        return OldWebSocketsResource.render(self, request) # For non-RFC versions of websockets
+
+class WebSocket(RawWebSocket):
+    def _makeFactory(self):
+        f = JsonFactory(self.parent._factory)
+        f.parent = self.parent
+        WebSocketsResource.__init__(self, f)
+        OldWebSocketsResource.__init__(self, f)

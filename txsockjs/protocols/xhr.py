@@ -23,48 +23,62 @@
 # OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
 # OF THE POSSIBILITY OF SUCH DAMAGE.
 
-from txsockjs.protocols.base import SessionProtocol
+from twisted.web import resource, http
+from txsockjs.protocols.base import StubResource
 
-class XHR(SessionProtocol):
-    allowedMethods = ['OPTIONS','POST']
-    contentType = 'application/javascript; charset=UTF-8'
-    chunked = False
+class XHR(StubResource):
     written = False
+    
+    def render_POST(self, request):
+        self.parent.setBaseHeaders(request)
+        request.setHeader('content-type', 'application/javascript; charset=UTF-8')
+        return self.connect(request)
+    
     def write(self, data):
         if self.written:
-            self.wrappedProtocol.requeue([data])
+            self.session.requeue([data])
             return
-        packet = "%s\n" % data
-        SessionProtocol.write(self, packet)
         self.written = True
-        self.loseConnection()
+        self.request.write("{}\n".format(data))
+        self.disconnect()
+    
     def writeSequence(self, data):
         if not self.written:
             self.write(data.pop(0))
-        self.wrappedProtocol.requeue(data)
+        self.session.requeue(data)
 
-class XHRSend(SessionProtocol):
-    allowedMethods = ['OPTIONS','POST']
-    contentType = 'text/plain; charset=UTF-8'
-    writeOnly = True
-    def sendHeaders(self, headers = {}):
-        h = {'status': '204 No Body'}
-        h.update(headers)
-        SessionProtocol.sendHeaders(self, h)
+class XHRSend(StubResource):
+    def render_POST(self, request):
+        self.parent.setBaseHeaders(request)
+        request.setResponseCode(http.NO_CONTENT)
+        request.setHeader('content-type', 'text/plain; charset=UTF-8')
+        ret = self.session.dataReceived(request.content.read())
+        if not ret:
+            return ""
+        request.setResponseCode(http.INTERNAL_SERVER_ERROR)
+        return "{}\r\n".format(ret)
 
-class XHRStream(SessionProtocol):
-    allowedMethods = ['OPTIONS','POST']
-    contentType = 'application/javascript; charset=UTF-8'
+class XHRStream(StubResource):
     sent = 0
-    def prepConnection(self):
-        self.sendHeaders()
-        SessionProtocol.write(self, 'h'*2048+"\n")
+    done = False
+    
+    def render_POST(self, request):
+        self.parent.setBaseHeaders(request)
+        request.setHeader('content-type', 'application/javascript; charset=UTF-8')
+        request.write("{}\n".format('h'*2048))
+        return self.connect(request)
+    
     def write(self, data):
-        packet = "%s\n" % data
+        if self.done:
+            self.session.requeue([data])
+            return
+        packet = "{}\n".format(data)
         self.sent += len(packet)
-        SessionProtocol.write(self, packet)
-        if self.sent > self.factory.options['streaming_limit']:
-            self.loseConnection()
+        self.request.write(packet)
+        if self.sent > self.parent._options['streaming_limit']:
+            self.done = True
+            self.disconnect()
+    
     def writeSequence(self, data):
         for d in data:
             self.write(d)

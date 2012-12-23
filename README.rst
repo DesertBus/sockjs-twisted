@@ -7,17 +7,9 @@ A simple library for adding SockJS support to your twisted application.
 Status
 ======
 
-SockJS-Twisted passes all `SockJS-Protocol v0.3 <https://github.com/sockjs/sockjs-protocol>`_ tests
-except for not supporting ``Connection: Keep-Alive``. There are no plans to support ``Connection: Keep-Alive``
-at this time, and it should not negatively impact any applications using SockJS-Twisted.
-
-SockJS-Twisted has been tested with the sample chat application in the tests directory, and it
-has been shown to work on all supported transports on Chrome, Firefox, Internet Explorer, Safari,
-and Opera. However, this testing was very light, and does not cover all edge cases.
-
-**Therefore, SockJS-Twisted is not proven production ready.** Please feel free to use it for
-projects where its failure would not be catastrophic, but it comes with no warranty. As
-always, any reports on performance or bugs is greatly appreciated.
+SockJS-Twisted passes all `SockJS-Protocol v0.3.3 <https://github.com/sockjs/sockjs-protocol>`_ tests,
+and all `SockJS-Client qunit <https://github.com/sockjs/sockjs-client>`_ tests. It has been used in
+production environments, and should be free of any critical bugs.
 
 Usage
 =====
@@ -50,6 +42,41 @@ For those who want to host multiple SockJS services off of one port,
 http://localhost:8080/echo and http://localhost:8080/chat will give you access
 to your EchoFactory and ChatFactory.
 
+Integration With Websites
+=========================
+
+It is possible to offer static resources, dynamic pages, and SockJS endpoints off of
+a single port by using ``txsockjs.factory.SockJSResource``.
+
+.. code-block:: python
+
+    from txsockjs.factory import SockJSResource
+    root = resource.Resource()
+    root.putChild("echo", SockJSResource(EchoFactory()))
+    root.putChild("chat", SockJSResource(ChatFactory()))
+    site = server.Site(root)
+    reactor.listenTCP(8080, site)
+
+Multiplexing [Experimental]
+===========================
+
+SockJS-Twisted also has built-in support for multiplexing. See the
+`Websocket-Multiplex <https://github.com/sockjs/websocket-multiplex>`_ library
+for how to integrate multiplexing client side.
+
+.. code-block:: python
+
+    from txsockjs.multiplex import SockJSMultiplexResource
+    multiplex = SockJSMultiplexResource()
+    multiplex.addFactory("echo", EchoFactory())
+    multiplex.addFactory("chat", ChatFactory())
+    root = resource.Resource()
+    root.putChild("multiplex", multiplex)
+    site = server.Site(root)
+    reactor.listenTCP(8080, site)
+
+If you want PubSub functionality, just use ``txsockjs.multiplex.SockJSPubSubResource`` instead!
+
 Options
 =======
 
@@ -63,10 +90,14 @@ A dictionary of options can be passed into the factory to control SockJS behavio
         'heartbeat': 25,
         'timeout': 5,
         'streaming_limit': 128 * 1024,
-        'encoding': 'cp1252' # Latin1
+        'encoding': 'cp1252', # Latin1
+        'sockjs_url': 'https://d1fxtkz8shb9d2.cloudfront.net/sockjs-0.3.js'
     }
     SockJSFactory(factory_to_wrap, options)
     SockJSMultiFactory().addFactory(factory_to_wrap, prefix, options)
+    SockJSResource(factory_to_wrap, options)
+    SockJSMultiplexResource(options)
+    SockJSPubSubResource(options)
 
 websocket :
     whether websockets are supported as a protocol. Useful for proxies or load balancers that don't support websockets.
@@ -86,13 +117,8 @@ streaming_limit :
 encoding :
     All messages to and from txsockjs should be valid UTF-8. In the event that a message received by txsockjs is not UTF-8, fall back to this encoding.
 
-Caveats
-=======
-
-SockJS-Twisted does not re-use any HTTP machinery, and is not designed to be run
-on port 80 or 443 alongside a webserver. It is primarily for existing TCP based 
-applications to offer a backwards compatible web connection, similar to 
-`txWS <https://github.com/MostAwesomeDude/txWS/>`_.
+sockjs_url :
+    The url of the SockJS library to use in iframes. By default this is served over HTTPS and therefore shouldn't need changing.
 
 License
 =======
