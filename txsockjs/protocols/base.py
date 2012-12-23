@@ -24,205 +24,122 @@
 # OF THE POSSIBILITY OF SUCH DAMAGE.
 
 from zope.interface import directlyProvides, providedBy
-from twisted.internet import reactor
-from twisted.internet.protocol import Protocol
+from twisted.internet import reactor, protocol
+from twisted.web import resource, server, http
 from twisted.protocols.policies import ProtocolWrapper
-import json, Cookie, urllib
+from txsockjs.utils import normalize
+import json
 
-def normalize(s, encoding):
-    if not isinstance(s, basestring):
-        try:
-            return str(s)
-        except UnicodeEncodeError:
-            return unicode(s).encode('utf-8','backslashreplace')
-    elif isinstance(s, unicode):
-        return s.encode('utf-8', 'backslashreplace')
-    else:
-        if s.decode('utf-8', 'ignore').encode('utf-8', 'ignore') == s: # Ensure s is a valid UTF-8 string
-            return s
-        else: # Otherwise assume it is Windows 1252
-            return s.decode(encoding, 'replace').encode('utf-8', 'backslashreplace')
-
-class SessionProtocol(ProtocolWrapper):
-    allowedMethods = ['OPTIONS']
-    contentType = 'text/plain; charset=UTF-8'
-    writeOnly = False
-    chunked = True
-    disconnecting = True
-    def __init__(self, parent):
-        self.method = parent.method
-        self.headers = parent.headers
-        self.session = parent.session
-        self.location = parent.location
-        self.query = parent.query
-        self.version = parent.version
-        self.factory = parent.factory
-        self.buf = ""
-        self.transport = parent
-        self.wrappedProtocol = None
-    def makeConnection(self, transport):
-        directlyProvides(self, providedBy(transport))
-        Protocol.makeConnection(self, transport)
-        
-        if not self.method in self.allowedMethods:
-            self.sendHeaders({'status': '405 Method Not Supported','allow': ', '.join(self.allowedMethods)})
-            self.transport.write("\r\n")
-            self.transport.loseConnection()
-            return
-        elif self.method == 'OPTIONS':
-            self.sendHeaders()
-            self.transport.write("")
-            self.transport.loseConnection()
-            return
-        
-        if not self.writeOnly:
-            if self.session in self.factory.sessions:
-                self.wrappedProtocol = self.factory.sessions[self.session]
-            else:
-                self.wrappedProtocol = RelayProtocol(self.factory, self.factory.wrappedFactory.buildProtocol(self.transport.addr), self.session, self)
-            
-            if self.wrappedProtocol.attached:
-                self.wrappedProtocol = None
-                self.failConnect()
-            else:
-                if not self.prepConnection():
-                    self.disconnecting = False
-                    self.wrappedProtocol.makeConnection(self)
-        else:
-            if self.session in self.factory.sessions:
-                self.wrappedProtocol = self.factory.sessions[self.session]
-            else:
-                self.sendHeaders({'status': '404 Not Found'})
-                self.transport.write("\r\n")
-                self.transport.loseConnection()
-    def connectionLost(self, reason):
-        if not self.writeOnly and self.wrappedProtocol:
-            self.wrappedProtocol.connectionLost(reason)
-        if not self.writeOnly and not self.disconnecting and self.wrappedProtocol:
-            self.wrappedProtocol.disconnect()
-    def prepConnection(self):
-        self.sendHeaders()
-    def failConnect(self):
-        self.prepConnection()
-        self.write('c[2010,"Another connection still open"]')
-        self.loseConnection()
-    def sendHeaders(self, h = {}):
-        if 'Origin' in self.headers and self.headers['Origin'] != 'null':
-            origin = self.headers['Origin']
-        else:
-            origin = '*'
-        headers = {
-            'status': '200 OK',
-            'content-type': self.contentType,
-            'access-control-allow-origin': origin,
-            'access-control-allow-credentials': 'true',
-            'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0',
-            'Connection': 'close'
-        }
-        if self.chunked and not self.writeOnly and self.version == 'HTTP/1.1' and self.method != 'OPTIONS':
-            headers['transfer-encoding'] = 'chunked'
-        if 'Access-Control-Request-Headers' in self.headers and self.headers['Access-Control-Request-Headers']:
-            headers['Access-Control-Allow-Headers'] = self.headers['Access-Control-Request-Headers']
-        if self.method == 'OPTIONS':
-            headers.update({
-                'status': '204 No Body',
-                'Cache-Control': 'public, max-age=31536000',
-                'access-control-max-age': '31536000',
-                'Access-Control-Allow-Methods': ', '.join(self.allowedMethods),
-                'Expires': 'Fri, 01 Jan 2500 00:00:00 GMT' #Get a new library by then
-            })
-        elif self.factory.options['cookie_needed']:
-            c = Cookie.SimpleCookie()
-            c['JSESSIONID'] = 'dummy'
-            if 'Cookie' in self.headers:
-                c.load(self.headers['Cookie'])
-            c['JSESSIONID']['path'] = '/'
-            headers.update({'Set-Cookie':c['JSESSIONID'].OutputString()})
-        headers.update(h)
-        h = ''
-        if 'status' in headers:
-            h += "HTTP/1.1 %s\r\n" % headers['status']
-            del headers['status']
-        for k, v in headers.iteritems():
-            h += "%s: %s\r\n" % (k, v)
-        self.transport.write(h + "\r\n")
-    def write(self, data):
-        if not self.chunked or self.writeOnly or self.version != 'HTTP/1.1':
-            self.transport.write(data)
-        else:
-            self.transport.write("%X\r\n%s\r\n" % (len(data), data))
-    def loseConnection(self):
-        if self.chunked and not self.writeOnly and self.version == 'HTTP/1.1':
-            self.transport.write('0\r\n\r\n')
-        self.disconnecting = True
-        self.transport.loseConnection()
-    def dataReceived(self, data):
-        if not self.wrappedProtocol or not self.writeOnly:
-            return
-        self.buf += data
-        if 'Content-Length' in self.headers and len(self.buf) < int(self.headers['Content-Length']):
-            return
-        ret = self.wrappedProtocol.dataReceived(self.buf)
-        self.buf = ""
-        if ret:
-            ret += "\r\n"
-            self.sendHeaders({'status':'500 Internal Server Error','Content-Length':str(len(ret))})
-            self.transport.write(ret)
-        else:
-            self.sendBody()
-        self.loseConnection()
-    def sendBody(self):
-        self.sendHeaders()
-        
-class RelayProtocol(ProtocolWrapper):
-    def __init__(self, factory, protocol, session, transport):
+class StubResource(resource.Resource, ProtocolWrapper):
+    isLeaf = True
+    def __init__(self, parent, session):
+        resource.Resource.__init__(self)
+        ProtocolWrapper.__init__(self, None, session)
+        self.parent = parent
         self.session = session
-        self.wrappedProtocol = protocol
-        self.factory = factory
-        self.transport = None
+        self.putChild("", self)
+    
+    def render_OPTIONS(self, request):
+        method = "POST" if getattr(self, "render_POST", None) is not None else "GET"
+        request.setResponseCode(http.NO_CONTENT)
+        self.parent.setBaseHeaders(request,False)
+        request.setHeader('Cache-Control', 'public, max-age=31536000')
+        request.setHeader('access-control-max-age', '31536000')
+        request.setHeader('Expires', 'Fri, 01 Jan 2500 00:00:00 GMT') #Get a new library by then
+        request.setHeader('Access-Control-Allow-Methods', 'OPTIONS, {}'.format(method)) # Hardcoding this may be bad?
+        return ""
+    
+    def connect(self, request):
+        if self.session.attached:
+            return 'c[2010,"Another connection still open"]\n'
+        self.request = request
+        directlyProvides(self, providedBy(request.transport))
+        protocol.Protocol.makeConnection(self, request.transport)
+        self.session.makeConnection(self)
+        request.notifyFinish().addErrback(self.connectionLost)
+        return server.NOT_DONE_YET
+    
+    def disconnect(self):
+        self.request.finish()
+        self.session.transportLeft()
+    
+    def loseConnection(self):
+        self.request.finish()
+        self.session.transportLeft()
+    
+    def connectionLost(self, reason=None):
+        self.wrappedProtocol.connectionLost(reason)
+
+class Stub(ProtocolWrapper):
+    def __init__(self, parent, session):
+        self.parent = parent
+        self.session = session
         self.pending = []
         self.buffer = []
-        self.attached = False
-        self.peer = transport.getPeer()
-        self.host = transport.getHost()
         self.connecting = True
         self.disconnecting = False
-        
-        self.factory.registerProtocol(self)
-        self.wrappedProtocol.makeConnection(self)
-        reactor.callLater(self.factory.options['heartbeat'], self.heartbeat)
-        self.timeout = reactor.callLater(self.factory.options['timeout'], self.disconnect)
-    def heartbeat(self):
-        self.pending.append('h')
-        reactor.callLater(self.factory.options['heartbeat'], self.heartbeat)
+        self.attached = False
+        self.transport = None # Upstream (SockJS)
+        self.protocol = None # Downstream (Wrapped Factory)
+        self.peer = None
+        self.host = None
+        self.timeout = reactor.callLater(self.parent._options['timeout'], self.disconnect)
+        #reactor.callLater(self.parent._options['heartbeat'], self.heartbeat)
+    
     def makeConnection(self, transport):
         directlyProvides(self, providedBy(transport))
-        Protocol.makeConnection(self, transport)
+        protocol.Protocol.makeConnection(self, transport)
         self.attached = True
         self.peer = self.transport.getPeer()
         self.host = self.transport.getHost()
         if self.timeout.active():
             self.timeout.cancel()
+        if self.protocol is None:
+            self.protocol = self.parent._factory.buildProtocol(self.transport.getPeer())
+            self.protocol.makeConnection(self)
         self.sendData()
+    
     def loseConnection(self):
         self.disconnecting = True
         self.sendData()
+    
+    def connectionLost(self, reason=None):
+        if self.attached:
+            self.disconnecting = True
+            self.transport = None
+            self.attached = False
+            self.disconnect()
+    
+    def heartbeat(self):
+        self.pending.append('h')
+        reactor.callLater(self.parent._options['heartbeat'], self.heartbeat)
+    
     def disconnect(self):
-        self.wrappedProtocol.connectionLost(None)
-        self.factory.unregisterProtocol(self)
-    def connectionLost(self, reason):
+        if self.protocol:
+            self.protocol.connectionLost(None)
+        del self.parent._sessions[self.session]
+    
+    def transportLeft(self):
         self.transport = None
         self.attached = False
-        self.timeout = reactor.callLater(self.factory.options['timeout'], self.disconnect)
+        self.timeout = reactor.callLater(self.parent._options['timeout'], self.disconnect)
+    
     def write(self, data):
-        data = normalize(data, self.factory.options['encoding'])
+        data = normalize(data, self.parent._options['encoding'])
         self.buffer.append(data)
         self.sendData()
+    
     def writeSequence(self, data):
         for p in data:
-            p = normalize(p, self.factory.options['encoding'])
+            p = normalize(p, self.parent._options['encoding'])
         self.buffer.extend(data)
         self.sendData()
+    
+    def writeRaw(self, data):
+        self.flushData()
+        self.pending.append(data)
+        self.sendData()
+    
     def sendData(self):
         if self.transport:
             if self.connecting:
@@ -231,21 +148,25 @@ class RelayProtocol(ProtocolWrapper):
                 self.sendData()
             elif self.disconnecting:
                 self.transport.write('c[3000,"Go away!"]')
-                self.transport.loseConnection()
+                if self.transport:
+                    self.transport.loseConnection()
             else:
                 self.flushData()
                 if self.pending:
                     data = list(self.pending)
                     self.pending = []
                     self.transport.writeSequence(data)
+    
     def flushData(self):
         if self.buffer:
-            data = 'a'+json.dumps(self.buffer, separators=(',',':'))
+            data = 'a{}'.format(json.dumps(self.buffer, separators=(',',':')))
             self.buffer = []
             self.pending.append(data)
+    
     def requeue(self, data):
         data.extend(self.pending)
         self.pending = data
+    
     def dataReceived(self, data):
         if self.timeout.active():
             self.timeout.reset(5)
@@ -254,25 +175,27 @@ class RelayProtocol(ProtocolWrapper):
         try:
             packets = json.loads(data)
             for p in packets:
-                p = normalize(p, self.factory.options['encoding'])
-                self.wrappedProtocol.dataReceived(p)
+                p = normalize(p, self.parent._options['encoding'])
+                if self.protocol:
+                    self.protocol.dataReceived(p)
             return None
         except ValueError:
             return "Broken JSON encoding."
+        
     def getPeer(self):
         return self.peer
+    
     def getHost(self):
         return self.host
+    
     def registerProducer(self, producer, streaming):
         if self.transport:
             self.transport.registerProducer(producer, streaming)
+    
     def unregisterProducer(self):
         if self.transport:
             self.transport.unregisterProducer()
+    
     def stopConsuming(self):
         if self.transport:
             self.transport.stopConsuming()
-    #def pauseProducing(self):
-    #    pass
-    #def __getattr__(self, name):
-    #    return getattr(self.transport, name) if self.transport else None

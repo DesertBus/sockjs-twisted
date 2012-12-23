@@ -17,7 +17,7 @@ setup(
         "Twisted",
     ],
     classifiers=[
-        "Development Status :: 4 - Beta",
+        "Development Status :: 5 - Production/Stable",
         "Framework :: Twisted",
         "Intended Audience :: Developers",
         "License :: OSI Approved :: BSD License",
