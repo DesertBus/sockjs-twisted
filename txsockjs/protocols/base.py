@@ -84,7 +84,7 @@ class Stub(ProtocolWrapper):
         self.peer = None
         self.host = None
         self.timeout = reactor.callLater(self.parent._options['timeout'], self.disconnect)
-        #reactor.callLater(self.parent._options['heartbeat'], self.heartbeat)
+        self.heartbeat_timer = reactor.callLater(self.parent._options['heartbeat'], self.heartbeat)
     
     def makeConnection(self, transport):
         directlyProvides(self, providedBy(transport))
@@ -96,7 +96,10 @@ class Stub(ProtocolWrapper):
             self.timeout.cancel()
         if self.protocol is None:
             self.protocol = self.parent._factory.buildProtocol(self.transport.getPeer())
-            self.protocol.makeConnection(self)
+            if self.protocol is None:
+                self.connectionLost()
+            else:
+                self.protocol.makeConnection(self)
         self.sendData()
     
     def loseConnection(self):
@@ -112,12 +115,16 @@ class Stub(ProtocolWrapper):
     
     def heartbeat(self):
         self.pending.append('h')
-        reactor.callLater(self.parent._options['heartbeat'], self.heartbeat)
+        self.heartbeat_timer = reactor.callLater(self.parent._options['heartbeat'], self.heartbeat)
     
     def disconnect(self):
         if self.protocol:
             self.protocol.connectionLost(None)
         del self.parent._sessions[self.session]
+        if self.timeout.active():
+            self.timeout.cancel()
+        if self.heartbeat_timer.active():
+            self.heartbeat_timer.cancel()
     
     def transportLeft(self):
         self.transport = None

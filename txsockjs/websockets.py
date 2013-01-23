@@ -515,10 +515,18 @@ class WebSocketsResource(object):
         # And now take matters into our own hands. We shall manage the
         # transport's lifecycle.
         transport, request.transport = request.transport, None
-
+        
         # Connect the transport to our factory, and make things go. We need to
         # do some stupid stuff here; see #3204, which could fix it.
-        transport.protocol = protocol
+        if request.isSecure():
+            # Secure connections wrap in TLSMemoryBIOProtocol too.
+            transport.protocol.wrappedProtocol = protocol
+        else:
+            transport.protocol = protocol
+        
         protocol.makeConnection(transport)
+        
+        ## Copy the buffer
+        #protocol.dataReceived(request.channel.clearLineBuffer())
 
         return NOT_DONE_YET
