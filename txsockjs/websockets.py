@@ -431,6 +431,7 @@ class WebSocketsResource(object):
         We're not actually rendering a request. We are secretly going to
         handle a WebSockets connection instead.
         """
+        request.defaultContentType = None
         # If we fail at all, we're gonna fail with 400 and no response.
         # You might want to pop open the RFC and read along.
         failed = False
@@ -503,7 +504,7 @@ class WebSocketsResource(object):
         # Create the protocol. This could fail, in which case we deliver an
         # error status. Status 502 was decreed by glyph; blame him.
         protocol = self._factory.buildProtocol(request.transport.getPeer())
-        if not protocol:
+        if not protocol.wrappedProtocol:
             request.setResponseCode(502)
             return ""
         if codec:
@@ -515,10 +516,18 @@ class WebSocketsResource(object):
         # And now take matters into our own hands. We shall manage the
         # transport's lifecycle.
         transport, request.transport = request.transport, None
-
+        
         # Connect the transport to our factory, and make things go. We need to
         # do some stupid stuff here; see #3204, which could fix it.
-        transport.protocol = protocol
+        if request.isSecure():
+            # Secure connections wrap in TLSMemoryBIOProtocol too.
+            transport.protocol.wrappedProtocol = protocol
+        else:
+            transport.protocol = protocol
+        
         protocol.makeConnection(transport)
+        
+        ## Copy the buffer
+        #protocol.dataReceived(request.channel.clearLineBuffer())
 
         return NOT_DONE_YET

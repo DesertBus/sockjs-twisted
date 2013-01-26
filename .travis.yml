@@ -1,0 +1,7 @@
+language: python
+python: "2.7"
+install: pip install Twisted --use-mirrors
+script: trial tests
+notifications:
+  email:
+    - Fugiman47@gmail.com

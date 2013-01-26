@@ -23,6 +23,9 @@
 # OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
 # OF THE POSSIBILITY OF SUCH DAMAGE.
 
+from twisted.internet.ssl import DefaultOpenSSLContextFactory
+import json
+
 def normalize(s, encoding):
     if not isinstance(s, basestring):
         try:
@@ -39,6 +42,16 @@ def normalize(s, encoding):
 
 def broadcast(message, targets, encoding="cp1252"):
     message = normalize(message, encoding)
-    message = 'a{}'.format(json.dumps([message], separators=(',',':')))
+    json_msg = 'a{}'.format(json.dumps([message], separators=(',',':')))
     for t in targets:
-        t.writeRaw(message)
+        if getattr(t, "writeRaw", None) is not None:
+            t.writeRaw(json_msg)
+        else:
+            t.write(message)
+
+
+# The only difference is using ctx.use_certificate_chain_file instead of ctx.use_certificate_file
+class ChainedOpenSSLContextFactory(DefaultOpenSSLContextFactory):
+    def cacheContext(self):
+        DefaultOpenSSLContextFactory.cacheContext(self)
+        self._context.use_certificate_chain_file(self.certificateFileName)
