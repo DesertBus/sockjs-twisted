@@ -318,6 +318,7 @@ class OldWebSocketsResource(object):
         We're not actually rendering a request. We are secretly going to
         handle a WebSockets connection instead.
         """
+        request.defaultContentType = None
         # If we fail at all, we're gonna fail with 400 and no response.
         failed = False
 
@@ -382,7 +383,7 @@ class OldWebSocketsResource(object):
         # Create the protocol. This could fail, in which case we deliver an
         # error status. Status 502 was decreed by glyph; blame him.
         protocol = self.__factory.buildProtocol(request.transport.getPeer())
-        if not protocol:
+        if not protocol.wrappedProtocol:
             request.setResponseCode(502)
             return ""
         protocol.old = old
@@ -396,7 +397,15 @@ class OldWebSocketsResource(object):
         
         ## Then we wire it into the protocol wrapper
         transport, request.transport = request.transport, None
-        transport.protocol = protocol
+        
+        # Connect the transport to our factory, and make things go. We need to
+        # do some stupid stuff here; see #3204, which could fix it.
+        if request.isSecure():
+            # Secure connections wrap in TLSMemoryBIOProtocol too.
+            transport.protocol.wrappedProtocol = protocol
+        else:
+            transport.protocol = protocol
+        
         protocol.makeConnection(transport)
         
         ## Copy the buffer
