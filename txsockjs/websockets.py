@@ -2,10 +2,10 @@
 # === THIS IS A DIRECT COPY OF twisted.web.websockets AS IT IS STILL IN DEVELOPMENT ===
 # === IT WILL BE REPLACED BY THE ACTUAL VERSION WHEN IT IS PUBLICLY AVAILABLE.      ===
 # =====================================================================================
-
-# Copyright (c) 2011-2012 Oregon State University Open Source Lab
+# -*- test-case-name: twisted.web.test.test_websockets -*-
+# Copyright (c) Twisted Matrix Laboratories.
+#               2011-2012 Oregon State University Open Source Lab
 #               2011-2012 Corbin Simpson
-#                         Twisted Matrix Laboratories
 #
 # See LICENSE for details.
 
@@ -14,18 +14,17 @@ The WebSockets protocol (RFC 6455), provided as a resource which wraps a
 factory.
 """
 
-__all__ = ("WebSocketsResource",)
+__all__ = ["WebSocketsResource"]
 
-from base64 import b64encode, b64decode
 from hashlib import sha1
 from struct import pack, unpack
 
-from zope.interface import implementer
+from zope.interface import implementer, Interface
 
 from twisted.protocols.policies import ProtocolWrapper, WrappingFactory
 from twisted.python import log
 from twisted.python.constants import NamedConstant, Names
-from twisted.web.resource import IResource, NoResource
+from twisted.web.resource import IResource
 from twisted.web.server import NOT_DONE_YET
 
 
@@ -50,29 +49,22 @@ class _CONTROLS(Names):
     PING = NamedConstant()
     PONG = NamedConstant()
 
-_opcode_types = {
+
+_opcodeTypes = {
     0x0: _CONTROLS.NORMAL,
     0x1: _CONTROLS.NORMAL,
     0x2: _CONTROLS.NORMAL,
     0x8: _CONTROLS.CLOSE,
     0x9: _CONTROLS.PING,
-    0xa: _CONTROLS.PONG,
-}
+    0xa: _CONTROLS.PONG}
 
-_opcode_for_type = {
+
+_opcodeForType = {
     _CONTROLS.NORMAL: 0x1,
     _CONTROLS.CLOSE: 0x8,
     _CONTROLS.PING: 0x9,
-    _CONTROLS.PONG: 0xa,
-}
+    _CONTROLS.PONG: 0xa}
 
-_encoders = {
-    "base64": b64encode,
-}
-
-_decoders = {
-    "base64": b64decode,
-}
 
 # Authentication for WS.
 
@@ -152,7 +144,7 @@ def _makeFrame(buf, _opcode=_CONTROLS.NORMAL):
         length = chr(bufferLength)
 
     # Always make a normal packet.
-    header = chr(0x80 | _opcode_for_type[_opcode])
+    header = chr(0x80 | _opcodeForType[_opcode])
     frame = "%s%s%s" % (header, length, buf)
     return frame
 
@@ -168,7 +160,6 @@ def _parseFrames(buf):
     @rtype: C{list}
     @return: A list of frames.
     """
-
     start = 0
     frames = []
 
@@ -188,7 +179,7 @@ def _parseFrames(buf):
         # care about.
         opcode = header & 0xf
         try:
-            opcode = _opcode_types[opcode]
+            opcode = _opcodeTypes[opcode]
         except KeyError:
             raise _WSException("Unknown opcode %d in frame" % opcode)
 
@@ -261,39 +252,36 @@ class _WebSocketsProtocol(ProtocolWrapper):
     Protocol which wraps another protocol to provide a WebSockets transport
     layer.
     """
-
-    buf = ""
-    codec = None
-
-    def __init__(self, *args, **kwargs):
-        ProtocolWrapper.__init__(self, *args, **kwargs)
-        self._pending_frames = []
+    _buffer = None
 
 
     def connectionMade(self):
+        """
+        Log the new connection and initialize the buffer list.
+        """
         ProtocolWrapper.connectionMade(self)
         log.msg("Opening connection with %s" % self.transport.getPeer())
+        self._buffer = []
 
 
-    def parseFrames(self):
+    def _parseFrames(self):
         """
         Find frames in incoming data and pass them to the underlying protocol.
         """
-
         try:
-            frames, self.buf = _parseFrames(self.buf)
+            frames, rest = _parseFrames("".join(self._buffer))
         except _WSException:
             # Couldn't parse all the frames, something went wrong, let's bail.
             log.err()
             self.loseConnection()
             return
 
+        self._buffer[:] = [rest]
+
         for frame in frames:
             opcode, data = frame
             if opcode == _CONTROLS.NORMAL:
                 # Business as usual. Decode the frame, if we have a decoder.
-                if self.codec:
-                    data = _decoders[self.codec](data)
                 # Pass the frame to the underlying protocol.
                 ProtocolWrapper.dataReceived(self, data)
             elif opcode == _CONTROLS.CLOSE:
@@ -311,32 +299,26 @@ class _WebSocketsProtocol(ProtocolWrapper):
                 self.transport.write(_makeFrame(data, _opcode=_CONTROLS.PONG))
 
 
-    def sendFrames(self):
+    def _sendFrames(self, frames):
         """
         Send all pending frames.
-        """
 
-        for frame in self._pending_frames:
+        @param frames: A list of byte strings to send.
+        @type frames: C{list}
+        """
+        for frame in frames:
             # Encode the frame before sending it.
-            if self.codec:
-                frame = _encoders[self.codec](frame)
             packet = _makeFrame(frame)
             self.transport.write(packet)
-        self._pending_frames = []
 
 
     def dataReceived(self, data):
-        self.buf += data
+        """
+        Append the data to the buffer list and parse the whole.
+        """
+        self._buffer.append(data)
 
-        self.parseFrames()
-
-        # Kick any pending frames. This is needed because frames might have
-        # started piling up early; we can get write()s from our protocol above
-        # when they makeConnection() immediately, before our browser client
-        # actually sends any data. In those cases, we need to manually kick
-        # pending frames.
-        if self._pending_frames:
-            self.sendFrames()
+        self._parseFrames()
 
 
     def write(self, data):
@@ -345,9 +327,7 @@ class _WebSocketsProtocol(ProtocolWrapper):
 
         This method will only be called by the underlying protocol.
         """
-
-        self._pending_frames.append(data)
-        self.sendFrames()
+        self._sendFrames([data])
 
 
     def writeSequence(self, data):
@@ -356,9 +336,7 @@ class _WebSocketsProtocol(ProtocolWrapper):
 
         This method will only be called by the underlying protocol.
         """
-
-        self._pending_frames.extend(data)
-        self.sendFrames()
+        self._sendFrames(data)
 
 
     def loseConnection(self):
@@ -372,7 +350,6 @@ class _WebSocketsProtocol(ProtocolWrapper):
         should, according to the spec, be a simple acknowledgement, it
         shouldn't be a problem.
         """
-
         # Send a closing frame. It's only polite. (And might keep the browser
         # from hanging.)
         if not self.disconnecting:
@@ -391,12 +368,34 @@ class _WebSocketsFactory(WrappingFactory):
     This factory does not provide the HTTP headers required to perform a
     WebSockets handshake; see C{WebSocketsResource}.
     """
-
     protocol = _WebSocketsProtocol
 
 
 
-@implementer(IResource)
+class IWebSocketsResource(Interface):
+    """
+    A WebSockets resource.
+
+    @since: 13.0
+    """
+
+    def lookupProtocol(protocolNames, request):
+        """
+        Build a protocol instance for the given protocol options and request.
+
+        @param protocolNames: The asked protocols from the client.
+        @type protocolNames: C{list} of C{str}
+
+        @param request: The connecting client request.
+        @type request: L{IRequest<twistd.web.iweb.IRequest>}
+
+        @return: A tuple of (protocol, C{None}).
+        @rtype: C{tuple}
+        """
+
+
+
+@implementer(IResource, IWebSocketsResource)
 class WebSocketsResource(object):
     """
     A resource for serving a protocol through WebSockets.
@@ -407,9 +406,8 @@ class WebSocketsResource(object):
     Due to unresolved questions of logistics, this resource cannot have
     children.
 
-    @since 12.3
+    @since: 13.0
     """
-
     isLeaf = True
 
     def __init__(self, factory):
@@ -417,19 +415,55 @@ class WebSocketsResource(object):
 
 
     def getChildWithDefault(self, name, request):
-        return NoResource("No such child resource.")
+        """
+        Reject attempts to retrieve a child resource.  All path segments beyond
+        the one which refers to this resource are handled by the WebSocket
+        connection.
+        """
+        raise RuntimeError(
+            "Cannot get IResource children from WebsocketsResourceTest")
 
 
     def putChild(self, path, child):
-        pass
+        """
+        Reject attempts to add a child resource to this resource.  The
+        WebSocket connection handles all path segments beneath this resource,
+        so L{IResource} children can never be found.
+        """
+        raise RuntimeError(
+            "Cannot put IResource children under WebSocketsResource")
+
+
+    def lookupProtocol(self, protocolNames, request):
+        """
+        Build a protocol instance for the given protocol options and request.
+        This default implementation ignores the protocols and just return an
+        instance of protocols built by C{self._factory}.
+
+        @param protocolNames: The asked protocols from the client.
+        @type protocolNames: C{list} of C{str}
+
+        @param request: The connecting client request.
+        @type request: L{Request<twistd.web.http.Request>}
+
+        @return: A tuple of (protocol, C{None}).
+        @rtype: C{tuple}
+        """
+        protocol = self._factory.buildProtocol(request.transport.getPeer())
+        return protocol, None
 
 
     def render(self, request):
         """
         Render a request.
 
-        We're not actually rendering a request. We are secretly going to
-        handle a WebSockets connection instead.
+        We're not actually rendering a request. We are secretly going to handle
+        a WebSockets connection instead.
+
+        @param request: The connecting client request.
+        @type request: L{Request<twistd.web.http.Request>}
+
+        @return: a strinf if the request fails, otherwise C{NOT_DONE_YET}.
         """
         request.defaultContentType = None
         # If we fail at all, we're gonna fail with 400 and no response.
@@ -462,29 +496,17 @@ class WebSocketsResource(object):
             # 4.4 Forward-compatible version checking.
             request.setHeader("Sec-WebSocket-Version", "13")
 
-        # Check whether a codec is needed. WS calls this a "protocol" for
-        # reasons I cannot fathom. The specification permits multiple,
-        # comma-separated codecs to be listed, but this functionality isn't
-        # used in the wild. (If that ever changes, we'll have already added
-        # the requisite codecs here anyway.) The main reason why we check for
-        # codecs at all is that older draft versions of WebSockets used base64
-        # encoding to work around the inability to send \x00 bytes, and those
-        # runtimes would request base64 encoding during the handshake. We
-        # stand prepared to engage that behavior should any of those runtimes
-        # start supporting RFC WebSockets.
-        #
-        # We probably should remove this altogether, but I'd rather leave it
-        # because it will prove to be a useful reference if/when extensions
-        # are added, and it *does* work as advertised.
-        codec = request.getHeader("Sec-WebSocket-Protocol")
-
-        if codec:
-            if codec not in _encoders or codec not in _decoders:
-                log.msg("Codec %s is not implemented" % codec)
-                failed = True
-
         if failed:
             request.setResponseCode(400)
+            return ""
+
+        askedProtocols = request.requestHeaders.getRawHeaders(
+            "Sec-WebSocket-Protocol")
+        protocol, protocolName = self.lookupProtocol(askedProtocols, request)
+
+        # If a protocol is not created, we deliver an error status.
+        if not protocol.wrappedProtocol:
+            request.setResponseCode(502)
             return ""
 
         # We are going to finish this handshake. We will return a valid status
@@ -498,17 +520,8 @@ class WebSocketsResource(object):
         # 4.2.2.5.4 Response to the key challenge
         request.setHeader("Sec-WebSocket-Accept", _makeAccept(key))
         # 4.2.2.5.5 Optional codec declaration
-        if codec:
-            request.setHeader("Sec-WebSocket-Protocol", codec)
-
-        # Create the protocol. This could fail, in which case we deliver an
-        # error status. Status 502 was decreed by glyph; blame him.
-        protocol = self._factory.buildProtocol(request.transport.getPeer())
-        if not protocol.wrappedProtocol:
-            request.setResponseCode(502)
-            return ""
-        if codec:
-            protocol.codec = codec
+        if protocolName:
+            request.setHeader("Sec-WebSocket-Protocol", protocolName)
 
         # Provoke request into flushing headers and finishing the handshake.
         request.write("")
@@ -516,7 +529,7 @@ class WebSocketsResource(object):
         # And now take matters into our own hands. We shall manage the
         # transport's lifecycle.
         transport, request.transport = request.transport, None
-        
+
         # Connect the transport to our factory, and make things go. We need to
         # do some stupid stuff here; see #3204, which could fix it.
         if request.isSecure():
@@ -524,10 +537,6 @@ class WebSocketsResource(object):
             transport.protocol.wrappedProtocol = protocol
         else:
             transport.protocol = protocol
-        
         protocol.makeConnection(transport)
-        
-        ## Copy the buffer
-        #protocol.dataReceived(request.channel.clearLineBuffer())
 
         return NOT_DONE_YET
