@@ -29,14 +29,26 @@ except ImportError:
     from txsockjs.websockets import WebSocketsResource
 
 from zope.interface import directlyProvides, providedBy
+from twisted.internet import address
 from twisted.internet.protocol import Protocol
 from twisted.protocols.policies import WrappingFactory, ProtocolWrapper
 from twisted.web.server import NOT_DONE_YET
 from txsockjs.oldwebsockets import OldWebSocketsResource
 from txsockjs.utils import normalize
-import json
+import json, re
 
-class JsonProtocol(ProtocolWrapper):
+
+class PeerOverrideProtocol(ProtocolWrapper):
+    def getPeer(self):
+        if self.parent._options["proxy_header"] and self.request.requestHeaders.hasHeader(self.parent._options["proxy_header"]):
+            ip = self.request.requestHeaders.getRawHeaders(self.parent._options["proxy_header"])[0].split(",")[-1].strip()
+            if re.match("\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}", ip):
+                return address.IPv4Address("TCP", ip, None)
+            else:
+                return address.IPv6Address("TCP", ip, None)
+        return ProtocolWrapper.getPeer(self)
+
+class JsonProtocol(PeerOverrideProtocol):
     def makeConnection(self, transport):
         directlyProvides(self, providedBy(transport))
         Protocol.makeConnection(self, transport)
@@ -49,7 +61,7 @@ class JsonProtocol(ProtocolWrapper):
     
     def writeSequence(self, data):
         for p in data:
-            p = normalize(p, self.factory.parent._options['encoding'])
+            p = normalize(p, self.parent._options['encoding'])
         self.transport.write("a{}".format(json.dumps(data, separators=(',',':'))))
     
     def writeRaw(self, data):
@@ -70,6 +82,9 @@ class JsonProtocol(ProtocolWrapper):
             for d in dat:
                 ProtocolWrapper.dataReceived(self, d)
 
+class PeerOverrideFactory(WrappingFactory):
+    protocol = PeerOverrideProtocol
+
 class JsonFactory(WrappingFactory):
     protocol = JsonProtocol
 
@@ -78,8 +93,18 @@ class RawWebSocket(WebSocketsResource, OldWebSocketsResource):
         self._factory = None
     
     def _makeFactory(self):
+        f = PeerOverrideFactory(self.parent._factory)
         WebSocketsResource.__init__(self, self.parent._factory) 
-        OldWebSocketsResource.__init__(self, self.parent._factory) 
+        OldWebSocketsResource.__init__(self, self.parent._factory)
+
+    def lookupProtocol(self, protocolNames, request, old = False):
+        if old:
+            protocol = self._oldfactory.buildProtocol(request.transport.getPeer())
+        else:
+            protocol = self._factory.buildProtocol(request.transport.getPeer())
+        protocol.request = request
+        protocol.parent = self.parent
+        return protocol, None
     
     def render(self, request):
         # Get around .parent limitation
@@ -109,6 +134,5 @@ class RawWebSocket(WebSocketsResource, OldWebSocketsResource):
 class WebSocket(RawWebSocket):
     def _makeFactory(self):
         f = JsonFactory(self.parent._factory)
-        f.parent = self.parent
         WebSocketsResource.__init__(self, f)
         OldWebSocketsResource.__init__(self, f)

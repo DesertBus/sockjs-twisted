@@ -55,7 +55,8 @@ class SockJSResource(resource.Resource):
             'timeout': 5,
             'streaming_limit': 128 * 1024,
             'encoding': 'cp1252', #Latin1
-            'sockjs_url': 'https://d1fxtkz8shb9d2.cloudfront.net/sockjs-0.3.js'
+            'sockjs_url': 'https://d1fxtkz8shb9d2.cloudfront.net/sockjs-0.3.js',
+            'proxy_header': None
         }
         if options is not None:
             self._options.update(options)

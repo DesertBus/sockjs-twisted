@@ -24,11 +24,11 @@
 # OF THE POSSIBILITY OF SUCH DAMAGE.
 
 from zope.interface import directlyProvides, providedBy
-from twisted.internet import reactor, protocol
+from twisted.internet import reactor, protocol, address
 from twisted.web import resource, server, http
 from twisted.protocols.policies import ProtocolWrapper
 from txsockjs.utils import normalize
-import json
+import json, re
 
 class StubResource(resource.Resource, ProtocolWrapper):
     isLeaf = True
@@ -69,6 +69,16 @@ class StubResource(resource.Resource, ProtocolWrapper):
     
     def connectionLost(self, reason=None):
         self.wrappedProtocol.connectionLost(reason)
+
+    def getPeer(self):
+        if self.parent._options["proxy_header"] and self.request.requestHeaders.hasHeader(self.parent._options["proxy_header"]):
+            ip = self.request.requestHeaders.getRawHeaders(self.parent._options["proxy_header"])[0].split(",")[-1].strip()
+            if re.match("\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}", ip):
+                return address.IPv4Address("TCP", ip, None)
+            else:
+                return address.IPv6Address("TCP", ip, None)
+        return ProtocolWrapper.getPeer(self)
+
 
 class Stub(ProtocolWrapper):
     def __init__(self, parent, session):
