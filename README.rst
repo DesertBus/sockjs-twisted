@@ -75,8 +75,6 @@ for how to integrate multiplexing client side.
     site = server.Site(root)
     reactor.listenTCP(8080, site)
 
-If you want PubSub functionality, just use ``txsockjs.multiplex.SockJSPubSubResource`` instead!
-
 Options
 =======
 
@@ -91,13 +89,13 @@ A dictionary of options can be passed into the factory to control SockJS behavio
         'timeout': 5,
         'streaming_limit': 128 * 1024,
         'encoding': 'cp1252', # Latin1
-        'sockjs_url': 'https://d1fxtkz8shb9d2.cloudfront.net/sockjs-0.3.js'
+        'sockjs_url': 'https://d1fxtkz8shb9d2.cloudfront.net/sockjs-0.3.js',
+        'proxy_header': None
     }
     SockJSFactory(factory_to_wrap, options)
     SockJSMultiFactory().addFactory(factory_to_wrap, prefix, options)
     SockJSResource(factory_to_wrap, options)
     SockJSMultiplexResource(options)
-    SockJSPubSubResource(options)
 
 websocket :
     whether websockets are supported as a protocol. Useful for proxies or load balancers that don't support websockets.
@@ -119,6 +117,9 @@ encoding :
 
 sockjs_url :
     The url of the SockJS library to use in iframes. By default this is served over HTTPS and therefore shouldn't need changing.
+
+proxy_header :
+    The HTTP header to pull a proxied IP address out of. Leave as None to get the unproxied IP. **Do not change this unless you are behind a proxy you control.**
 
 License
 =======

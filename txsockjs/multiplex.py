@@ -28,13 +28,6 @@ from twisted.protocols.policies import ProtocolWrapper
 from txsockjs.factory import SockJSResource
 from txsockjs import utils
 
-class BroadcastProtocol(Protocol):
-    def dataReceived(self, data):
-        self.transport.broadcast(data)
-
-class BroadcastFactory(Factory):
-    protocol = BroadcastProtocol
-
 class MultiplexProxy(ProtocolWrapper):
     def __init__(self, factory, wrappedProtocol, transport, topic):
         ProtocolWrapper.__init__(self, factory, wrappedProtocol)
@@ -121,14 +114,6 @@ class MultiplexFactory(Factory):
     
     def unregisterProtocol(self, p):
         pass
-        
-class PubSubFactory(MultiplexFactory):
-    broadcastFactory = BroadcastFactory()
-    
-    def subscribe(self, p, name):
-        if name not in self._topics:
-            self._topics[name] = self.broadcastFactory
-        MultiplexFactory.subscribe(self, p, name)
 
 class SockJSMultiplexResource(SockJSResource):
     def __init__(self, options=None):
@@ -142,7 +127,3 @@ class SockJSMultiplexResource(SockJSResource):
     
     def removeFactory(self, name):
         return self._factory.removeFactory(name)
-
-class SockJSPubSubResource(SockJSMultiplexResource):
-    def __init__(self, options=None):
-        SockJSResource.__init__(self, PubSubFactory(self), options)
