@@ -512,7 +512,7 @@ class OldWebSocketsResource(object):
     isLeaf = True
 
     def __init__(self, factory):
-        self._factory = _WebSocketsFactory(factory)
+        self.__factory = _WebSocketsFactory(factory)
 
 
     def getChildWithDefault(self, name, request):
@@ -539,7 +539,7 @@ class OldWebSocketsResource(object):
         """
         Build a protocol instance for the given protocol options and request.
         This default implementation ignores the protocols and just return an
-        instance of protocols built by C{self._factory}.
+        instance of protocols built by C{self.__factory}.
 
         @param protocolNames: The asked protocols from the client.
         @type protocolNames: C{list} of C{str}
@@ -550,7 +550,7 @@ class OldWebSocketsResource(object):
         @return: A tuple of (protocol, C{None}).
         @rtype: C{tuple}
         """
-        protocol = self._factory.buildProtocol(request.transport.getPeer())
+        protocol = self.__factory.buildProtocol(request.transport.getPeer())
         return protocol, None
 
 
@@ -603,7 +603,7 @@ class OldWebSocketsResource(object):
 
         askedProtocols = request.requestHeaders.getRawHeaders(
             "Sec-WebSocket-Protocol")
-        protocol, protocolName = self.lookupProtocol(askedProtocols, request)
+        protocol, protocolName = self.lookupProtocol(askedProtocols, request, True)
 
         # If a protocol is not created, we deliver an error status.
         if not protocol.wrappedProtocol:

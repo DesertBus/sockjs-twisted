@@ -97,8 +97,11 @@ class RawWebSocket(WebSocketsResource, OldWebSocketsResource):
         WebSocketsResource.__init__(self, self.parent._factory) 
         OldWebSocketsResource.__init__(self, self.parent._factory)
 
-    def lookupProtocol(self, protocolNames, request):
-        protocol = self._factory.buildProtocol(request.transport.getPeer())
+    def lookupProtocol(self, protocolNames, request, old = False):
+        if old:
+            protocol = self.__factory.buildProtocol(request.transport.getPeer())
+        else:
+            protocol = self._factory.buildProtocol(request.transport.getPeer())
         protocol.request = request
         protocol.parent = self.parent
         return protocol, None
