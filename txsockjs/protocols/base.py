@@ -28,7 +28,7 @@ from twisted.internet import reactor, protocol, address
 from twisted.web import resource, server, http
 from twisted.protocols.policies import ProtocolWrapper
 from txsockjs.utils import normalize
-import json
+import json, re
 
 class StubResource(resource.Resource, ProtocolWrapper):
     isLeaf = True

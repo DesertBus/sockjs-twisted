@@ -99,7 +99,7 @@ class RawWebSocket(WebSocketsResource, OldWebSocketsResource):
 
     def lookupProtocol(self, protocolNames, request, old = False):
         if old:
-            protocol = self.__factory.buildProtocol(request.transport.getPeer())
+            protocol = self._oldfactory.buildProtocol(request.transport.getPeer())
         else:
             protocol = self._factory.buildProtocol(request.transport.getPeer())
         protocol.request = request

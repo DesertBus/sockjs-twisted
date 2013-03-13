@@ -408,7 +408,7 @@ class _WebSocketsProtocol(ProtocolWrapper):
                     self.pending_dc = False
                     self.loseConnection()
         else:
-            self.parseFrames()
+            self._parseFrames()
             if self._pending_frames:
                 self._sendFrames()
 
@@ -512,7 +512,7 @@ class OldWebSocketsResource(object):
     isLeaf = True
 
     def __init__(self, factory):
-        self.__factory = _WebSocketsFactory(factory)
+        self._oldfactory = _WebSocketsFactory(factory)
 
 
     def getChildWithDefault(self, name, request):
@@ -539,7 +539,7 @@ class OldWebSocketsResource(object):
         """
         Build a protocol instance for the given protocol options and request.
         This default implementation ignores the protocols and just return an
-        instance of protocols built by C{self.__factory}.
+        instance of protocols built by C{self._oldfactory}.
 
         @param protocolNames: The asked protocols from the client.
         @type protocolNames: C{list} of C{str}
@@ -550,7 +550,7 @@ class OldWebSocketsResource(object):
         @return: A tuple of (protocol, C{None}).
         @rtype: C{tuple}
         """
-        protocol = self.__factory.buildProtocol(request.transport.getPeer())
+        protocol = self._oldfactory.buildProtocol(request.transport.getPeer())
         return protocol, None
 
 
@@ -585,17 +585,17 @@ class OldWebSocketsResource(object):
             # 4.2.1.4 Connection: Upgrade is required.
             failed = True
 
-        key = request.getHeader("Sec-WebSocket-Key")
-        if key is None:
-            # 4.2.1.5 The challenge key is required.
-            failed = True
+        ##key = request.getHeader("Sec-WebSocket-Key")
+        ##if key is None:
+        ##    # 4.2.1.5 The challenge key is required.
+        ##    failed = True
 
-        version = request.getHeader("Sec-WebSocket-Version")
-        if version != "13":
-            # 4.2.1.6 Only version 13 works.
-            failed = True
-            # 4.4 Forward-compatible version checking.
-            request.setHeader("Sec-WebSocket-Version", "13")
+        ##version = request.getHeader("Sec-WebSocket-Version")
+        ##if version != "13":
+        ##    # 4.2.1.6 Only version 13 works.
+        ##    failed = True
+        ##    # 4.4 Forward-compatible version checking.
+        ##    request.setHeader("Sec-WebSocket-Version", "13")
 
         if failed:
             request.setResponseCode(400)
