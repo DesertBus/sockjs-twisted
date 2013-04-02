@@ -102,8 +102,20 @@ class RawWebSocket(WebSocketsResource, OldWebSocketsResource):
             protocol = self._oldfactory.buildProtocol(request.transport.getPeer())
         else:
             protocol = self._factory.buildProtocol(request.transport.getPeer())
+        
         protocol.request = request
         protocol.parent = self.parent
+        
+        # give our wrapped protocols access to request too
+        proto = protocol
+        while True:
+            proto.request = request
+            proto.parent = self.parent
+            p = getattr(proto, 'wrappedProtocol', None)
+            if not p:
+                break
+            proto = p
+        
         return protocol, None
     
     def render(self, request):
