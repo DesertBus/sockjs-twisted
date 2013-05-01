@@ -42,7 +42,7 @@ def normalize(s, encoding):
 
 def broadcast(message, targets, encoding="cp1252"):
     message = normalize(message, encoding)
-    json_msg = 'a{}'.format(json.dumps([message], separators=(',',':')))
+    json_msg = 'a{0}'.format(json.dumps([message], separators=(',',':')))
     for t in targets:
         if getattr(t, "writeRaw", None) is not None:
             t.writeRaw(json_msg)

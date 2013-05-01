@@ -46,7 +46,7 @@ class StubResource(resource.Resource, ProtocolWrapper):
         request.setHeader('Cache-Control', 'public, max-age=31536000')
         request.setHeader('access-control-max-age', '31536000')
         request.setHeader('Expires', 'Fri, 01 Jan 2500 00:00:00 GMT') #Get a new library by then
-        request.setHeader('Access-Control-Allow-Methods', 'OPTIONS, {}'.format(method)) # Hardcoding this may be bad?
+        request.setHeader('Access-Control-Allow-Methods', 'OPTIONS, {0}'.format(method)) # Hardcoding this may be bad?
         return ""
     
     def connect(self, request):
@@ -176,7 +176,7 @@ class Stub(ProtocolWrapper):
     
     def flushData(self):
         if self.buffer:
-            data = 'a{}'.format(json.dumps(self.buffer, separators=(',',':')))
+            data = 'a{0}'.format(json.dumps(self.buffer, separators=(',',':')))
             self.buffer = []
             self.pending.append(data)
     

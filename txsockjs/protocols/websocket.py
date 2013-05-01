@@ -62,7 +62,7 @@ class JsonProtocol(PeerOverrideProtocol):
     def writeSequence(self, data):
         for p in data:
             p = normalize(p, self.parent._options['encoding'])
-        self.transport.write("a{}".format(json.dumps(data, separators=(',',':'))))
+        self.transport.write("a{0}".format(json.dumps(data, separators=(',',':'))))
     
     def writeRaw(self, data):
         self.transport.write(data)

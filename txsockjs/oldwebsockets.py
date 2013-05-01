@@ -182,7 +182,7 @@ def _makeFrame(buf, old, _opcode=_CONTROLS.NORMAL):
     if old:
         if _opcode != _CONTROLS.NORMAL:
             return None
-        return "\x00{}\xFF".format(buf)
+        return "\x00{0}\xFF".format(buf)
     else:
         bufferLength = len(buf)
 
@@ -624,7 +624,7 @@ class OldWebSocketsResource(object):
             protocol.old = True
             host = request.getHeader("Host") or "example.com"
             origin = request.getHeader("Origin") or "http://example.com"
-            location = "{}://{}{}".format("wss" if request.isSecure() else "ws", host, request.path)
+            location = "{0}://{1}{2}".format("wss" if request.isSecure() else "ws", host, request.path)
             if _isHixie75(request):
                 request.setHeader("WebSocket-Origin", origin)
                 request.setHeader("WebSocket-Location", location)

@@ -45,11 +45,11 @@ class HTMLFile(StubResource):
 </head><body><h2>Don't panic!</h2>
   <script>
     document.domain = document.domain;
-    var c = parent.{};
+    var c = parent.{0};
     c.start();
     function p(d) {{c.message(d);}};
     window.onload = function() {{c.stop();}};
-  </script>{}
+  </script>{1}
 '''.format(callback, ' '*1024))
         return self.connect(request)
     
@@ -57,7 +57,7 @@ class HTMLFile(StubResource):
         if self.done:
             self.session.requeue([data])
             return
-        packet = "<script>\np(\"{}\");\n</script>\r\n".format(data.replace('\\','\\\\').replace('"','\\"'))
+        packet = "<script>\np(\"{0}\");\n</script>\r\n".format(data.replace('\\','\\\\').replace('"','\\"'))
         self.sent += len(packet)
         self.request.write(packet)
         if self.sent > self.parent._options['streaming_limit']:
