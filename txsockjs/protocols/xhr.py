@@ -39,7 +39,7 @@ class XHR(StubResource):
             self.session.requeue([data])
             return
         self.written = True
-        self.request.write("{}\n".format(data))
+        self.request.write("{0}\n".format(data))
         self.disconnect()
     
     def writeSequence(self, data):
@@ -56,7 +56,7 @@ class XHRSend(StubResource):
         if not ret:
             return ""
         request.setResponseCode(http.INTERNAL_SERVER_ERROR)
-        return "{}\r\n".format(ret)
+        return "{0}\r\n".format(ret)
 
 class XHRStream(StubResource):
     sent = 0
@@ -65,14 +65,14 @@ class XHRStream(StubResource):
     def render_POST(self, request):
         self.parent.setBaseHeaders(request)
         request.setHeader('content-type', 'application/javascript; charset=UTF-8')
-        request.write("{}\n".format('h'*2048))
+        request.write("{0}\n".format('h'*2048))
         return self.connect(request)
     
     def write(self, data):
         if self.done:
             self.session.requeue([data])
             return
-        packet = "{}\n".format(data)
+        packet = "{0}\n".format(data)
         self.sent += len(packet)
         self.request.write(packet)
         if self.sent > self.parent._options['streaming_limit']:

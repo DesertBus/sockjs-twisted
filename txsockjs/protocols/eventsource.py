@@ -39,7 +39,7 @@ class EventSource(StubResource):
         if self.done:
             self.session.requeue([data])
             return
-        packet = "data: {}\r\n\r\n".format(data)
+        packet = "data: {0}\r\n\r\n".format(data)
         self.sent += len(packet)
         self.request.write(packet)
         if self.sent > self.parent._options['streaming_limit']:
