@@ -126,6 +126,7 @@ class Stub(ProtocolWrapper):
     def heartbeat(self):
         self.pending.append('h')
         self.heartbeat_timer = reactor.callLater(self.parent._options['heartbeat'], self.heartbeat)
+        self.sendData()
     
     def disconnect(self):
         if self.protocol:
