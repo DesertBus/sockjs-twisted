@@ -29,7 +29,7 @@ except ImportError:
     from txsockjs.websockets import WebSocketsResource
 
 from zope.interface import directlyProvides, providedBy
-from twisted.internet import address
+from twisted.internet import reactor, address
 from twisted.internet.protocol import Protocol
 from twisted.protocols.policies import WrappingFactory, ProtocolWrapper
 from twisted.web.server import NOT_DONE_YET
@@ -55,6 +55,7 @@ class JsonProtocol(PeerOverrideProtocol):
         self.transport.write("o")
         self.factory.registerProtocol(self)
         self.wrappedProtocol.makeConnection(self)
+        self.heartbeat_timer = reactor.callLater(self.parent._options['heartbeat'], self.heartbeat)
     
     def write(self, data):
         self.writeSequence([data])
@@ -81,6 +82,10 @@ class JsonProtocol(PeerOverrideProtocol):
         else:
             for d in dat:
                 ProtocolWrapper.dataReceived(self, d)
+
+    def heartbeat(self):
+        self.transport.write('h')
+        self.heartbeat_timer = reactor.callLater(self.parent._options['heartbeat'], self.heartbeat)
 
 class PeerOverrideFactory(WrappingFactory):
     protocol = PeerOverrideProtocol
