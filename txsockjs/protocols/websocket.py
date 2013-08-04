@@ -71,7 +71,11 @@ class JsonProtocol(PeerOverrideProtocol):
     def loseConnection(self):
         self.transport.write('c[3000,"Go away!"]')
         ProtocolWrapper.loseConnection(self)
-    
+
+    def connectionLost(self, reason=None):
+        if self.heartbeat_timer.active():
+            self.heartbeat_timer.cancel()
+
     def dataReceived(self, data):
         if not data:
             return
