@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-from tests.common import EchoFactory, Request, BaseUnitTest
+from .common import EchoFactory, Request, BaseUnitTest
 
 HTTP_METHODS = ["OPTIONS","HEAD","GET","POST","PUT","DELETE"]
 
