@@ -9,7 +9,7 @@ from txsockjs.protocols.jsonp import JSONP, JSONPSend
 from txsockjs.protocols.static import Info, IFrame
 from txsockjs.protocols.websocket import RawWebSocket, WebSocket
 from txsockjs.protocols.xhr import XHR, XHRSend, XHRStream
-from tests.common import EchoFactory, Request, BaseUnitTest
+from .common import EchoFactory, Request, BaseUnitTest
 
 class FactoryUnitTest(BaseUnitTest):
     valid_sessions = (['a','a'],['_','_'],['1','1'],['abcdefgh_i-j%20','abcdefgh_i-j%20'])
