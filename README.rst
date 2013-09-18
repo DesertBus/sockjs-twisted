@@ -17,9 +17,21 @@ Usage
 Use ``txsockjs.factory.SockJSFactory`` to wrap your factories. That's it!
 
 .. code-block:: python
-
+    
+    from twisted.internet import reactor
+    from twisted.internet.protocol import Factory, Protocol
     from txsockjs.factory import SockJSFactory
-    reactor.listenTCP(8080, SockJSFactory(factory_to_wrap))
+
+    class HelloProtocol(Protocol):
+        def connectionMade(self):
+            self.transport.write('hello')
+            self.transport.write('how are you?')
+
+        def dataReceived(self, data):
+            print data
+
+    reactor.listenTCP(8080, SockJSFactory(Factory.forProtocol(HelloProtocol)))
+    reactor.run()
 
 There is nothing else to it, no special setup involved.
 
@@ -33,11 +45,33 @@ For those who want to host multiple SockJS services off of one port,
 
 .. code-block:: python
 
+    from twisted.internet import reactor
+    from twisted.internet.protocol import Factory, Protocol
     from txsockjs.factory import SockJSMultiFactory
+    from txsockjs.utils import broadcast
+
+    class EchoProtocol(Protocol):
+        def dataReceived(self, data):
+            self.transport.write(data)
+
+    class ChatProtocol(Protocol):
+        def connectionMade(self):
+            if not hasattr(self.factory, "transports"):
+                self.factory.transports = set()
+            self.factory.transports.add(self.transport)
+
+        def dataReceived(self, data):
+            broadcast(data, self.factory.transports)
+
+        def connectionLost(self, reason):
+            self.factory.transports.remove(self.transport)
+
     f = SockJSMultiFactory()
-    f.addFactory(EchoFactory(), "echo")
-    f.addFactory(ChatFactory(), "chat")
+    f.addFactory(Factory.forProtocol(EchoProtocol), "echo")
+    f.addFactory(Factory.forProtocol(ChatProtocol), "chat")
+
     reactor.listenTCP(8080, f)
+    reactor.run()
 
 http://localhost:8080/echo and http://localhost:8080/chat will give you access
 to your EchoFactory and ChatFactory.
@@ -50,12 +84,20 @@ a single port by using ``txsockjs.factory.SockJSResource``.
 
 .. code-block:: python
 
+    from twisted.internet import reactor
+    from twisted.internet.protocol import Factory, Protocol
+    from twisted.web import resource, server
     from txsockjs.factory import SockJSResource
+
+    # EchoProtocol and ChatProtocol defined above
+
     root = resource.Resource()
-    root.putChild("echo", SockJSResource(EchoFactory()))
-    root.putChild("chat", SockJSResource(ChatFactory()))
+    root.putChild("echo", SockJSResource(Factory.forProtocol(EchoProtocol)))
+    root.putChild("chat", SockJSResource(Factory.forProtocol(ChatProtocol)))
     site = server.Site(root)
+
     reactor.listenTCP(8080, site)
+    reactor.run()
 
 Multiplexing [Experimental]
 ===========================
@@ -66,14 +108,72 @@ for how to integrate multiplexing client side.
 
 .. code-block:: python
 
+    from twisted.internet import reactor
+    from twisted.internet.protocol import Factory, Protocol
+    from twisted.web import resource, server
     from txsockjs.multiplex import SockJSMultiplexResource
+
     multiplex = SockJSMultiplexResource()
-    multiplex.addFactory("echo", EchoFactory())
-    multiplex.addFactory("chat", ChatFactory())
+    multiplex.addFactory("echo", Factory.forProtocol(EchoProtocol))
+    multiplex.addFactory("chat", Factory.forProtocol(ChatProtocol))
+
     root = resource.Resource()
     root.putChild("multiplex", multiplex)
     site = server.Site(root)
+
     reactor.listenTCP(8080, site)
+    reactor.run()
+
+Single factory? Multifactory? Resource? Multiplexing? What's the difference?
+============================================================================
+
++-------------------------+--------------------+----------------------------------+--------------------------+
+| Type                    | Factories per port | Allows mixing native web content | Factories per connection |
++=========================+====================+==================================+==========================+
+| SockJSFactory           | Single             | No                               | Single                   |
++-------------------------+--------------------+----------------------------------+--------------------------+
+| SockJSMultiFactory      | Multiple           | No                               | Single                   |
++-------------------------+--------------------+----------------------------------+--------------------------+
+| SockJSResource          | Multiple           | Yes                              | Single                   |
++-------------------------+--------------------+----------------------------------+--------------------------+
+| SockJSMultiplexResource | Multiple           | Yes                              | Multiple                 |
++-------------------------+--------------------+----------------------------------+--------------------------+
+
+``SockJSFactory`` is recommended for use in non-web (HTTP) applications to allow
+native web connections. For instance, an IRC server. There can only be one factory
+listening on a port using this method. The SockJS endpoint uses this internally.
+
+``SockJSMultiFactory`` is recommended for use in non-web (HTTP) applications with
+multiple services. This allows multiple factories to listen on a single port.
+
+``SockJSResource`` is recommended for use in HTTP based applications, like webservers.
+
+``SockJSMultiplexResource`` is recommended for pubsub applications, where each connection
+needs to talk to multiple factories. Overriding the subscribe method allows for dynamic
+factory creation if you don't know what is needed server-side ahead of time.
+
+Endpoints
+=========
+
+For integration with pre-existing libraries or programs, it is possible use sockjs
+as an endpoint in the form ``sockjs:tcp:9090:interface=0.0.0.0:sockjs_encoding=utf8``.
+You can prefix any endpoint with ``sockjs`` to wrap it with txsockjs, and you can
+specify any option for the SockJSFactory by prefixing the option name with ``sockjs_``.
+For more information, read the
+`twisted documentation on endpoints <http://twistedmatrix.com/documents/current/core/howto/endpoints.html>`_.
+
+.. code-block:: python
+
+    from twisted.internet import reactor
+    from twisted.internet.protocol import Factory, Protocol
+    from twisted.internet.endpoints import serverFromString
+    # Note that we don't have to import anything from txsockjs
+
+    # HelloProtocol defined above
+
+    endpoint = serverFromString(reactor, "sockjs:tcp:8080")
+    endpoint.listen(Factory.forProtocol(HelloProtocol))
+    reactor.run()
 
 Options
 =======
