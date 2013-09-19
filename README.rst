@@ -156,9 +156,9 @@ Endpoints
 =========
 
 For integration with pre-existing libraries or programs, it is possible use sockjs
-as an endpoint in the form ``sockjs:tcp:9090:interface=0.0.0.0:sockjs_encoding=utf8``.
-You can prefix any endpoint with ``sockjs`` to wrap it with txsockjs, and you can
-specify any option for the SockJSFactory by prefixing the option name with ``sockjs_``.
+as an endpoint in the form ``sockjs:tcp\:9090\:interface\=0.0.0.0:encoding=utf8:websocket=false``.
+You can pass any escaped endpoint to a sockjs endpoint to wrap it with txsockjs, and you can
+specify any option for the SockJSFactory by specifying it as a keyword argument.
 For more information, read the
 `twisted documentation on endpoints <http://twistedmatrix.com/documents/current/core/howto/endpoints.html>`_.
 
@@ -171,7 +171,7 @@ For more information, read the
 
     # HelloProtocol defined above
 
-    endpoint = serverFromString(reactor, "sockjs:tcp:8080")
+    endpoint = serverFromString(reactor, "sockjs:tcp\:8080")
     endpoint.listen(Factory.forProtocol(HelloProtocol))
     reactor.run()
 

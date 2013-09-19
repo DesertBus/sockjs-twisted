@@ -29,28 +29,29 @@ from twisted.internet.interfaces import IStreamServerEndpointStringParser, IStre
 from twisted.internet.endpoints import serverFromString
 from txsockjs.factory import SockJSFactory
 
-def escape(s):
-	return s.replace('\\', '\\\\').replace(':', '\\:').replace('=', '\\=')
-
 class SockJSServerParser(object):
 	implements(IPlugin, IStreamServerEndpointStringParser)
 
 	prefix = "sockjs"
 
-	def parseStreamServer(self, reactor, *args, **kwargs):
-		args = [escape(x) for x in args]
+	def parseStreamServer(self, reactor, description, **options):
+		if 'websocket' in options:
+			options['websocket'] = options['websocket'].lower() == "true"
 
-		sockjs_kwargs = {}
-		for k,v in kwargs.items():
-			if k.startswith("sockjs_"):
-				sockjs_kwargs[k[7:]] = v
-			else:
-				args.append(escape(k) + "=" + escape(v))
+		if 'cookie_needed' in options:
+			options['cookie_needed'] = options['cookie_needed'].lower() == "true"
 
-		description = ":".join(args)
+		if 'heartbeat' in options:
+			options['heartbeat'] = int(options['websocket'])
+
+		if 'timeout' in options:
+			options['timeout'] = int(options['timeout'])
+
+		if 'streaming_limit' in options:
+			options['streaming_limit'] = int(options['streaming_limit'])
+
 		endpoint = serverFromString(reactor, description)
-
-		return SockJSServerEndpoint(endpoint, sockjs_kwargs)
+		return SockJSServerEndpoint(endpoint, options)
 
 class SockJSServerEndpoint(object):
 	implements(IPlugin, IStreamServerEndpoint)
