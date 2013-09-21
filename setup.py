@@ -12,6 +12,7 @@
 # Package's twistd plugins from twisted/plugins/, since pip also uses
 # Package.egg-info/installed-files.txt to determine what to uninstall,
 # and the paths to the plugin files are indeed listed in installed-files.txt.
+from distutils import log
 from setuptools import setup
 
 try:

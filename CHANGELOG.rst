@@ -5,6 +5,9 @@ SockJS-Twisted Changelog
 1.2
 ===
 
+**1.2.1**
+ * Fix broken setup.py
+
 **1.2.0**
  * Add endpoint support
 
