@@ -23,7 +23,6 @@
 # OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
 # OF THE POSSIBILITY OF SUCH DAMAGE.
 
-from twisted.internet.ssl import DefaultOpenSSLContextFactory
 import json
 
 def normalize(s, encoding):
@@ -49,9 +48,12 @@ def broadcast(message, targets, encoding="cp1252"):
         else:
             t.write(message)
 
-
-# The only difference is using ctx.use_certificate_chain_file instead of ctx.use_certificate_file
-class ChainedOpenSSLContextFactory(DefaultOpenSSLContextFactory):
-    def cacheContext(self):
-        DefaultOpenSSLContextFactory.cacheContext(self)
-        self._context.use_certificate_chain_file(self.certificateFileName)
+try:
+    from twisted.internet.ssl import DefaultOpenSSLContextFactory
+    # The only difference is using ctx.use_certificate_chain_file instead of ctx.use_certificate_file
+    class ChainedOpenSSLContextFactory(DefaultOpenSSLContextFactory):
+        def cacheContext(self):
+            DefaultOpenSSLContextFactory.cacheContext(self)
+            self._context.use_certificate_chain_file(self.certificateFileName)
+except ImportError:
+    pass # no SSL support
