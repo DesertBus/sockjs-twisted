@@ -75,7 +75,12 @@ class JsonProtocol(PeerOverrideProtocol):
         if not data:
             return
         try:
-            dat = json.loads(data)
+            unicodedat = json.loads(data)
+            dat = []
+            for item in unicodedat:
+                if isinstance(item, unicode):
+                    item = item.encode("utf-8")
+                dat.append(item)
         except ValueError:
             self.transport.loseConnection()
         else:
