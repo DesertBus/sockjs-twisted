@@ -75,6 +75,7 @@ class JsonProtocol(PeerOverrideProtocol):
     def connectionLost(self, reason=None):
         if self.heartbeat_timer.active():
             self.heartbeat_timer.cancel()
+            PeerOverrideProtocol.connectionLost(self, reason)
 
     def dataReceived(self, data):
         if not data:
