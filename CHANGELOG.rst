@@ -5,6 +5,12 @@ SockJS-Twisted Changelog
 1.2
 ===
 
+**1.2.2**
+ * Fix CVE-2014-4671
+ * Fix numerous bugs in which unicode wasn't converted to UTF-8
+ * Fix heartbeats not being sent on websocket transport
+ * Add MIT license headers to enable using txsockjs in Debian packages
+
 **1.2.1**
  * Fix broken setup.py
 
