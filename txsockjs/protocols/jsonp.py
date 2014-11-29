@@ -43,7 +43,7 @@ class JSONP(StubResource):
             self.session.requeue([data])
             return
         self.written = True
-        self.request.write("{0}(\"{1}\");\r\n".format(self.callback, data.replace('\\','\\\\').replace('"','\\"')))
+        self.request.write("/**/{0}(\"{1}\");\r\n".format(self.callback, data.replace('\\','\\\\').replace('"','\\"')))
         self.disconnect()
     
     def writeSequence(self, data):
