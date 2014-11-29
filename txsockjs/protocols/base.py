@@ -148,8 +148,8 @@ class Stub(ProtocolWrapper):
         self.sendData()
     
     def writeSequence(self, data):
-        for p in data:
-            p = normalize(p, self.parent._options['encoding'])
+        for index, p in enumerate(data):
+            data[index] = normalize(p, self.parent._options['encoding'])
         self.buffer.extend(data)
         self.sendData()
     
