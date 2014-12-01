@@ -14,6 +14,25 @@
 # and the paths to the plugin files are indeed listed in installed-files.txt.
 from distutils import log
 from setuptools import setup
+from setuptools.command.install import install
+
+
+class InstallTwistedPlugin(install, object):
+    def run(self):
+        super(InstallTwistedPlugin, self).run()
+
+        # Make Twisted regenerate the dropin.cache, if possible.  This is necessary
+        # because in a site-wide install, dropin.cache cannot be rewritten by
+        # normal users.
+        log.info("Attempting to update Twisted plugin cache.")
+        try:
+            from twisted.plugin import IPlugin, getPlugins
+            list(getPlugins(IPlugin))
+            log.info("Twisted plugin cache updated successfully.")
+        except Exception, e:
+            log.warn("*** Failed to update Twisted plugin cache. ***")
+            log.warn(str(e))
+
 
 try:
     from setuptools.command import egg_info
@@ -62,14 +81,7 @@ setup(
         "Programming Language :: Python",
         "Topic :: Internet",
     ],
+    cmdclass = {
+        'install': InstallTwistedPlugin,
+    },
 )
-
-# Make Twisted regenerate the dropin.cache, if possible.  This is necessary
-# because in a site-wide install, dropin.cache cannot be rewritten by
-# normal users.
-try:
-    from twisted.plugin import IPlugin, getPlugins
-    list(getPlugins(IPlugin))
-except Exception, e:
-    log.warn("*** Failed to update Twisted plugin cache. ***")
-    log.warn(str(e))
