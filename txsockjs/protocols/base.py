@@ -121,16 +121,16 @@ class Stub(ProtocolWrapper):
             self.disconnecting = True
             self.transport = None
             self.attached = False
-            self.disconnect()
+            self.disconnect(reason=reason)
     
     def heartbeat(self):
         self.pending.append('h')
         self.heartbeat_timer = reactor.callLater(self.parent._options['heartbeat'], self.heartbeat)
         self.sendData()
     
-    def disconnect(self):
+    def disconnect(self, reason=None):
         if self.protocol:
-            self.protocol.connectionLost(None)
+            self.protocol.connectionLost(reason)
         del self.parent._sessions[self.session]
         if self.timeout.active():
             self.timeout.cancel()
