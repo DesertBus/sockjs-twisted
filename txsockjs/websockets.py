@@ -37,6 +37,7 @@ from struct import pack, unpack
 
 from zope.interface import implementer, Interface
 
+from twisted.internet import interfaces
 from twisted.protocols.policies import ProtocolWrapper, WrappingFactory
 from twisted.python import log
 from twisted.python.constants import NamedConstant, Names
@@ -545,6 +546,12 @@ class WebSocketsResource(object):
         # And now take matters into our own hands. We shall manage the
         # transport's lifecycle.
         transport, request.transport = request.transport, None
+
+        # Twisted 16.4.1 calls pauseProducing() once the request is received.
+        # Resume the producer now.
+        producer = interfaces.IPushProducer(transport, None)
+        if producer is not None:
+            producer.resumeProducing()
 
         # Connect the transport to our factory, and make things go. We need to
         # do some stupid stuff here; see #3204, which could fix it.
