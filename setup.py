@@ -29,7 +29,7 @@ class InstallTwistedPlugin(install, object):
             from twisted.plugin import IPlugin, getPlugins
             list(getPlugins(IPlugin))
             log.info("Twisted plugin cache updated successfully.")
-        except Exception, e:
+        except Exception as e:
             log.warn("*** Failed to update Twisted plugin cache. ***")
             log.warn(str(e))
 
@@ -70,6 +70,7 @@ setup(
     platforms=['OS Independent'],
     packages=["txsockjs","txsockjs.protocols","twisted.plugins"],
     install_requires=[
+        "six",
         "Twisted",
     ],
     classifiers=[

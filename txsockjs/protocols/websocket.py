@@ -52,7 +52,7 @@ class JsonProtocol(PeerOverrideProtocol):
     def makeConnection(self, transport):
         directlyProvides(self, providedBy(transport))
         Protocol.makeConnection(self, transport)
-        self.transport.write("o")
+        self.transport.write(b"o")
         self.factory.registerProtocol(self)
         self.wrappedProtocol.makeConnection(self)
         self.heartbeat_timer = reactor.callLater(self.parent._options['heartbeat'], self.heartbeat)
@@ -64,13 +64,13 @@ class JsonProtocol(PeerOverrideProtocol):
         data = list(data)
         for index, p in enumerate(data):
             data[index] = normalize(p, self.parent._options['encoding'])
-        self.transport.write("a{0}".format(json.dumps(data, separators=(',',':'))))
+        self.transport.write(b"a" + json.dumps(data, separators=(',',':')))
     
     def writeRaw(self, data):
         self.transport.write(data)
     
     def loseConnection(self):
-        self.transport.write('c[3000,"Go away!"]')
+        self.transport.write(b'c[3000,"Go away!"]')
         ProtocolWrapper.loseConnection(self)
 
     def connectionLost(self, reason=None):

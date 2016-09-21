@@ -23,15 +23,17 @@
 # OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
 # OF THE POSSIBILITY OF SUCH DAMAGE.
 
+from six import string_types, binary_type, text_type
 import json
 
 def normalize(s, encoding):
-    if not isinstance(s, basestring):
+    if not isinstance(s, string_types):
+        s = text_type(s)
         try:
-            return str(s)
+            return binary_type(s)
         except UnicodeEncodeError:
-            return unicode(s).encode('utf-8','backslashreplace')
-    elif isinstance(s, unicode):
+            return s.encode('utf-8', 'backslashreplace')
+    elif not isinstance(s, binary_type):
         return s.encode('utf-8', 'backslashreplace')
     else:
         if s.decode('utf-8', 'ignore').encode('utf-8', 'ignore') == s: # Ensure s is a valid UTF-8 string

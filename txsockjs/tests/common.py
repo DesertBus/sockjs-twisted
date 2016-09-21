@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-from StringIO import StringIO
+from six import BytesIO
 from twisted.internet.protocol import Protocol, Factory
 from twisted.trial import unittest
 from twisted.web.test.test_web import DummyRequest
@@ -21,17 +21,19 @@ class Request(DummyRequest):
     def __init__(self, method, *args, **kwargs):
         DummyRequest.__init__(self, *args, **kwargs)
         self.method = method
-        self.content = StringIO()
+        self.content = BytesIO()
         self.transport = StringTransport()
     
     def writeContent(self, data):
+        if not isinstance(data, bytes):
+            data = data.encode('ascii')
         self.content.seek(0,2) # Go to end of content
         self.content.write(data) # Write the data
         self.content.seek(0,0) # Go back to beginning of content
     
     def write(self, data):
         DummyRequest.write(self, data)
-        self.transport.write("".join(self.written))
+        self.transport.write(b"".join(self.written))
         self.written = []
     
     def value(self):

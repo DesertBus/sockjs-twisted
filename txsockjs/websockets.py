@@ -32,6 +32,7 @@ factory.
 
 __all__ = ["WebSocketsResource"]
 
+from base64 import b64encode
 from hashlib import sha1
 from struct import pack, unpack
 
@@ -43,6 +44,8 @@ from twisted.python import log
 from twisted.python.constants import NamedConstant, Names
 from twisted.web.resource import IResource
 from twisted.web.server import NOT_DONE_YET
+
+from six import PY3, int2byte, indexbytes
 
 
 
@@ -102,7 +105,8 @@ def _makeAccept(key):
     @rtype: C{str}
     @return: An encoded response.
     """
-    return sha1("%s%s" % (key, _WS_GUID)).digest().encode("base64").strip()
+    joined = ("%s%s" % (key, _WS_GUID)).encode('utf-8')
+    return b64encode(sha1(joined).digest()).strip().decode('ascii')
 
 
 
@@ -111,28 +115,49 @@ def _makeAccept(key):
 # Frames are bonghits in newer WS versions, so helpers are appreciated.
 
 
+if PY3:
+    def _mask(buf, key):
+        """
+        Mask or unmask a buffer of bytes with a masking key.
 
-def _mask(buf, key):
-    """
-    Mask or unmask a buffer of bytes with a masking key.
+        @type buf: C{bytes}
+        @param buf: A buffer of bytes.
 
-    @type buf: C{str}
-    @param buf: A buffer of bytes.
+        @type key: C{bytes}
+        @param key: The masking key. Must be exactly four bytes.
 
-    @type key: C{str}
-    @param key: The masking key. Must be exactly four bytes.
+        @rtype: C{bytes}
+        @return: A masked buffer of bytes.
+        """
 
-    @rtype: C{str}
-    @return: A masked buffer of bytes.
-    """
+        # This is super-secure, I promise~
+        key = list(key)
+        buf = list(buf)
+        for i, char in enumerate(buf):
+            buf[i] = char ^ key[i % 4]
+        return bytes(buf)
 
-    # This is super-secure, I promise~
-    key = [ord(i) for i in key]
-    buf = list(buf)
-    for i, char in enumerate(buf):
-        buf[i] = chr(ord(char) ^ key[i % 4])
-    return "".join(buf)
+else:
+    def _mask(buf, key):
+        """
+        Mask or unmask a buffer of bytes with a masking key.
 
+        @type buf: C{str}
+        @param buf: A buffer of bytes.
+
+        @type key: C{str}
+        @param key: The masking key. Must be exactly four bytes.
+
+        @rtype: C{str}
+        @return: A masked buffer of bytes.
+        """
+
+        # This is super-secure, I promise~
+        key = [ord(i) for i in key]
+        buf = list(buf)
+        for i, char in enumerate(buf):
+            buf[i] = chr(ord(char) ^ key[i % 4])
+        return "".join(buf)
 
 
 def _makeFrame(buf, _opcode=_CONTROLS.NORMAL):
@@ -142,27 +167,27 @@ def _makeFrame(buf, _opcode=_CONTROLS.NORMAL):
     This function always creates unmasked frames, and attempts to use the
     smallest possible lengths.
 
-    @type buf: C{str}
+    @type buf: C{bytes}
     @param buf: A buffer of bytes.
 
     @type _opcode: C{_CONTROLS}
     @param _opcode: Which type of frame to create.
 
-    @rtype: C{str}
+    @rtype: C{bytes}
     @return: A packed frame.
     """
     bufferLength = len(buf)
 
     if bufferLength > 0xffff:
-        length = "\x7f%s" % pack(">Q", bufferLength)
+        length = b"\x7f%s" % pack(">Q", bufferLength)
     elif bufferLength > 0x7d:
-        length = "\x7e%s" % pack(">H", bufferLength)
+        length = b"\x7e%s" % pack(">H", bufferLength)
     else:
-        length = chr(bufferLength)
+        length = int2byte(bufferLength)
 
     # Always make a normal packet.
-    header = chr(0x80 | _opcodeForType[_opcode])
-    frame = "%s%s%s" % (header, length, buf)
+    header = int2byte(0x80 | _opcodeForType[_opcode])
+    frame = b"%s%s%s" % (header, length, buf)
     return frame
 
 
@@ -171,7 +196,7 @@ def _parseFrames(buf):
     """
     Parse frames in a highly compliant manner.
 
-    @type buf: C{str}
+    @type buf: C{bytes}
     @param buf: A buffer of bytes.
 
     @rtype: C{list}
@@ -187,7 +212,7 @@ def _parseFrames(buf):
 
         # Grab the header. This single byte holds some flags nobody cares
         # about, and an opcode which nobody cares about.
-        header = ord(buf[start])
+        header = indexbytes(buf, start)
         if header & 0x70:
             # At least one of the reserved flags is set. Pork chop sandwiches!
             raise _WSException("Reserved flag in frame (%d)" % header)
@@ -202,7 +227,7 @@ def _parseFrames(buf):
 
         # Get the payload length and determine whether we need to look for an
         # extra length.
-        length = ord(buf[start + 1])
+        length = indexbytes(buf, start + 1)
         masked = length & 0x80
         length &= 0x7f
 
@@ -286,7 +311,7 @@ class _WebSocketsProtocol(ProtocolWrapper):
         Find frames in incoming data and pass them to the underlying protocol.
         """
         try:
-            frames, rest = _parseFrames("".join(self._buffer))
+            frames, rest = _parseFrames(b"".join(self._buffer))
         except _WSException:
             # Couldn't parse all the frames, something went wrong, let's bail.
             log.err()
@@ -370,7 +395,7 @@ class _WebSocketsProtocol(ProtocolWrapper):
         # Send a closing frame. It's only polite. (And might keep the browser
         # from hanging.)
         if not self.disconnecting:
-            frame = _makeFrame("", _opcode=_CONTROLS.CLOSE)
+            frame = _makeFrame(b"", _opcode=_CONTROLS.CLOSE)
             self.transport.write(frame)
 
             ProtocolWrapper.loseConnection(self)
