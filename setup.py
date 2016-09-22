@@ -61,9 +61,9 @@ import os
 setup(
     author="Christopher Gamble",
     author_email="chris@chrisgamble.net",
-    name="txsockjs",
+    name="txsockjs-py3",
     version=txsockjs.__version__,
-    description="Twisted SockJS wrapper",
+    description="Twisted SockJS wrapper, updated to Python 3",
     long_description=open(os.path.join(os.path.dirname(__file__), 'README.rst')).read(),
     url="http://github.com/Fugiman/sockjs-twisted",
     license='BSD License',
