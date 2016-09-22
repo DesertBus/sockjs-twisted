@@ -23,27 +23,42 @@
 # OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
 # OF THE POSSIBILITY OF SUCH DAMAGE.
 
-from six import string_types, binary_type, text_type
+from six import string_types, binary_type, text_type, PY3
 import json
 
+
 def normalize(s, encoding):
+    """Return bytes encoded in UTF-8.
+
+    If bytes are provided, decode using the given encoding
+    and re-encode as UTF-8.
+    """
     if not isinstance(s, string_types):
-        s = text_type(s)
-        try:
-            return binary_type(s)
-        except UnicodeEncodeError:
-            return s.encode('utf-8', 'backslashreplace')
-    elif not isinstance(s, binary_type):
+        if PY3:
+            return str(s).encode('utf-8', 'backslashreplace')
+        else:
+            try:
+                return str(s)
+            except UnicodeEncodeError:
+                return text_type(s).encode('utf-8', 'backslashreplace')
+    elif isinstance(s, text_type):
         return s.encode('utf-8', 'backslashreplace')
     else:
-        if s.decode('utf-8', 'ignore').encode('utf-8', 'ignore') == s: # Ensure s is a valid UTF-8 string
+        # s is a bytes object.
+        # Ensure s is a valid UTF-8 string.
+        if s.decode('utf-8', 'ignore').encode('utf-8', 'ignore') == s:
             return s
-        else: # Otherwise assume it is Windows 1252
-            return s.decode(encoding, 'replace').encode('utf-8', 'backslashreplace')
+        else:
+            # Otherwise assume it is the default encoding.
+            return s.decode(encoding, 'replace').encode(
+                'utf-8', 'backslashreplace')
+
 
 def broadcast(message, targets, encoding="cp1252"):
-    message = normalize(message, encoding)
-    json_msg = 'a{0}'.format(json.dumps([message], separators=(',',':')))
+    message = normalize(message, encoding).decode('utf-8')
+    json_msg = (
+        'a{0}'.format(json.dumps([message], separators=(',', ':')))
+        .encode('ascii'))
     for t in targets:
         if getattr(t, "writeRaw", None) is not None:
             t.writeRaw(json_msg)

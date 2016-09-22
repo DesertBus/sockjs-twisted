@@ -113,46 +113,29 @@ def _makeAccept(key):
 # Frame helpers.
 # Separated out to make unit testing a lot easier.
 # Frames are bonghits in newer WS versions, so helpers are appreciated.
+def _mask(buf, key):
+    """
+    Mask or unmask a buffer of bytes with a masking key.
 
+    @type buf: C{bytes}
+    @param buf: A buffer of bytes.
 
-if PY3:
-    def _mask(buf, key):
-        """
-        Mask or unmask a buffer of bytes with a masking key.
+    @type key: C{bytes}
+    @param key: The masking key. Must be exactly four bytes.
 
-        @type buf: C{bytes}
-        @param buf: A buffer of bytes.
+    @rtype: C{bytes}
+    @return: A masked buffer of bytes.
+    """
 
-        @type key: C{bytes}
-        @param key: The masking key. Must be exactly four bytes.
-
-        @rtype: C{bytes}
-        @return: A masked buffer of bytes.
-        """
-
-        # This is super-secure, I promise~
+    # This is super-secure, I promise~
+    if PY3:
         key = list(key)
         buf = list(buf)
         for i, char in enumerate(buf):
             buf[i] = char ^ key[i % 4]
         return bytes(buf)
 
-else:
-    def _mask(buf, key):
-        """
-        Mask or unmask a buffer of bytes with a masking key.
-
-        @type buf: C{str}
-        @param buf: A buffer of bytes.
-
-        @type key: C{str}
-        @param key: The masking key. Must be exactly four bytes.
-
-        @rtype: C{str}
-        @return: A masked buffer of bytes.
-        """
-
-        # This is super-secure, I promise~
+    else:
         key = [ord(i) for i in key]
         buf = list(buf)
         for i, char in enumerate(buf):

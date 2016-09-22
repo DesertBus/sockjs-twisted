@@ -64,7 +64,8 @@ class JsonProtocol(PeerOverrideProtocol):
         data = list(data)
         for index, p in enumerate(data):
             data[index] = normalize(p, self.parent._options['encoding'])
-        self.transport.write(b"a" + json.dumps(data, separators=(',',':')))
+        self.transport.write(
+            b"a" + json.dumps(data, separators=(',', ':')).encode('ascii'))
     
     def writeRaw(self, data):
         self.transport.write(data)

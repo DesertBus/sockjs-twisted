@@ -55,9 +55,9 @@ class JSONPSend(StubResource):
         self.parent.setBaseHeaders(request)
         request.setHeader('content-type', 'text/plain; charset=UTF-8')
         urlencoded = request.getHeader("Content-Type") == 'application/x-www-form-urlencoded'
-        data = request.args.get('d', [''])[0] if urlencoded else request.content.read()
+        data = request.args.get('d', [b''])[0] if urlencoded else request.content.read()
         ret = self.session.dataReceived(data)
         if not ret:
             return "ok"
         request.setResponseCode(http.INTERNAL_SERVER_ERROR)
-        return "{0}\r\n".format(ret)
+        return ret + b"\r\n"

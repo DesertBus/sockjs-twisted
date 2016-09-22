@@ -39,3 +39,5 @@ lib64
 include
 share
 .eggs
+local
+pip-selfcheck.json

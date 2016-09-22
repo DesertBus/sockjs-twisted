@@ -162,11 +162,11 @@ class Stub(ProtocolWrapper):
     def sendData(self):
         if self.transport:
             if self.connecting:
-                self.transport.write('o')
+                self.transport.write(b'o')
                 self.connecting = False
                 self.sendData()
             elif self.disconnecting:
-                self.transport.write('c[3000,"Go away!"]')
+                self.transport.write(b'c[3000,"Go away!"]')
                 if self.transport:
                     self.transport.loseConnection()
             else:
@@ -178,7 +178,8 @@ class Stub(ProtocolWrapper):
     
     def flushData(self):
         if self.buffer:
-            data = 'a{0}'.format(json.dumps(self.buffer, separators=(',',':')))
+            data = b'a' + json.dumps(
+                self.buffer, separators=(',', ':')).encode('ascii')
             self.buffer = []
             self.pending.append(data)
     
@@ -189,7 +190,7 @@ class Stub(ProtocolWrapper):
     def dataReceived(self, data):
         if self.timeout.active():
             self.timeout.reset(5)
-        if data == '':
+        if not data:
             return "Payload expected."
         try:
             packets = json.loads(data)

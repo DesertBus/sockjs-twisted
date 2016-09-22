@@ -18,8 +18,8 @@ class EchoFactory(Factory):
     protocol = EchoProtocol
 
 class Request(DummyRequest):
-    def __init__(self, method, *args, **kwargs):
-        DummyRequest.__init__(self, *args, **kwargs)
+    def __init__(self, method, postpath, session=None):
+        DummyRequest.__init__(self, postpath, session=session)
         self.method = method
         self.content = BytesIO()
         self.transport = StringTransport()
@@ -39,21 +39,23 @@ class Request(DummyRequest):
     def value(self):
         return self.transport.value()
 
+
 class BaseUnitTest(unittest.TestCase):
+    method = 'GET'
     path = ['']
-    
+
     def setUp(self):
         self.site = SockJSFactory(EchoFactory())
-        self.request = Request(self.path)
-    
+        self.request = Request(self.method, self.path)
+
     @inlineCallbacks
     def _load(self):
         self.resource = self.site.getResourceFor(self.request)
         yield self._render(self.resource, self.request)
-    
-    def _render(resource, request):
+
+    def _render(self, resource, request):
         result = resource.render(request)
-        if isinstance(result, str):
+        if isinstance(result, bytes):
             request.write(result)
             request.finish()
             return succeed(None)

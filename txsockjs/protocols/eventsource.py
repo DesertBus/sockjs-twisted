@@ -32,14 +32,14 @@ class EventSource(StubResource):
     def render_GET(self, request):
         self.parent.setBaseHeaders(request)
         request.setHeader('content-type', 'text/event-stream; charset=UTF-8')
-        request.write("\r\n")
+        request.write(b"\r\n")
         return self.connect(request)
-    
+
     def write(self, data):
         if self.done:
             self.session.requeue([data])
             return
-        packet = "data: {0}\r\n\r\n".format(data)
+        packet = b''.join(b'data: ', data, b'\r\n\r\n')
         self.sent += len(packet)
         self.request.write(packet)
         if self.sent > self.parent._options['streaming_limit']:
