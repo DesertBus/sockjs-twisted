@@ -35,8 +35,8 @@ class HTMLFile(StubResource):
         callback = request.args.get('c',[None])[0]
         if callback is None:
             request.setResponseCode(http.INTERNAL_SERVER_ERROR)
-            return '"callback" parameter required'
-        request.setHeader('content-type', 'text/html; charset=UTF-8')
+            return b'"callback" parameter required'
+        request.setHeader(b'content-type', b'text/html; charset=UTF-8')
         request.write(r'''
 <!doctype html>
 <html><head>
@@ -50,7 +50,7 @@ class HTMLFile(StubResource):
     function p(d) {{c.message(d);}};
     window.onload = function() {{c.stop();}};
   </script>{1}
-'''.format(callback, ' '*1024))
+'''.format(callback, ' '*1024).encode('utf-8'))
         return self.connect(request)
     
     def write(self, data):
@@ -59,7 +59,7 @@ class HTMLFile(StubResource):
             return
         packet = "<script>\np(\"{0}\");\n</script>\r\n".format(data.replace('\\','\\\\').replace('"','\\"'))
         self.sent += len(packet)
-        self.request.write(packet)
+        self.request.write(packet.encode('utf-8'))
         if self.sent > self.parent._options['streaming_limit']:
             self.done = True
             self.disconnect()

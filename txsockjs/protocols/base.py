@@ -43,15 +43,15 @@ class StubResource(resource.Resource, ProtocolWrapper):
         method = "POST" if getattr(self, "render_POST", None) is not None else "GET"
         request.setResponseCode(http.NO_CONTENT)
         self.parent.setBaseHeaders(request,False)
-        request.setHeader('Cache-Control', 'public, max-age=31536000')
-        request.setHeader('access-control-max-age', '31536000')
-        request.setHeader('Expires', 'Fri, 01 Jan 2500 00:00:00 GMT') #Get a new library by then
-        request.setHeader('Access-Control-Allow-Methods', 'OPTIONS, {0}'.format(method)) # Hardcoding this may be bad?
+        request.setHeader(b'Cache-Control', b'public, max-age=31536000')
+        request.setHeader(b'access-control-max-age', b'31536000')
+        request.setHeader(b'Expires', b'Fri, 01 Jan 2500 00:00:00 GMT') #Get a new library by then
+        request.setHeader(b'Access-Control-Allow-Methods', b'OPTIONS, {0}'.format(method)) # Hardcoding this may be bad?
         return ""
     
     def connect(self, request):
         if self.session.attached:
-            return 'c[2010,"Another connection still open"]\n'
+            return b'c[2010,"Another connection still open"]\n'
         self.request = request
         directlyProvides(self, providedBy(request.transport))
         protocol.Protocol.makeConnection(self, request.transport)
@@ -193,13 +193,13 @@ class Stub(ProtocolWrapper):
         if not data:
             return "Payload expected."
         try:
-            packets = json.loads(data)
+            packets = json.loads(data.decode('iso-8859-1'))
             for p in packets:
                 p = normalize(p, self.parent._options['encoding'])
                 if self.protocol:
                     self.protocol.dataReceived(p)
             return None
-        except ValueError:
+        except (ValueError, UnicodeDecodeError):
             return "Broken JSON encoding."
         
     def getPeer(self):

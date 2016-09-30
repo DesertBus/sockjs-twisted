@@ -31,7 +31,7 @@ class EventSource(StubResource):
     
     def render_GET(self, request):
         self.parent.setBaseHeaders(request)
-        request.setHeader('content-type', 'text/event-stream; charset=UTF-8')
+        request.setHeader(b'content-type', b'text/event-stream; charset=UTF-8')
         request.write(b"\r\n")
         return self.connect(request)
 

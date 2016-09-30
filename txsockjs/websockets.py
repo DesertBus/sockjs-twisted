@@ -89,7 +89,7 @@ _opcodeForType = {
 # Authentication for WS.
 
 # The GUID for WebSockets, from RFC 6455.
-_WS_GUID = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
+_WS_GUID = b"258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
 
 
 
@@ -99,14 +99,13 @@ def _makeAccept(key):
 
     This dance is expected to somehow magically make WebSockets secure.
 
-    @type key: C{str}
+    @type key: C{bytes}
     @param key: The key to respond to.
 
-    @rtype: C{str}
+    @rtype: C{bytes}
     @return: An encoded response.
     """
-    joined = ("%s%s" % (key, _WS_GUID)).encode('utf-8')
-    return b64encode(sha1(joined).digest()).strip().decode('ascii')
+    return b64encode(sha1(b"%s%s" % (key, _WS_GUID)).digest()).strip()
 
 
 
@@ -495,61 +494,61 @@ class WebSocketsResource(object):
         # You might want to pop open the RFC and read along.
         failed = False
 
-        if request.method != "GET":
+        if request.method != b"GET":
             # 4.2.1.1 GET is required.
             failed = True
 
-        upgrade = request.getHeader("Upgrade")
-        if upgrade is None or "websocket" not in upgrade.lower():
+        upgrade = request.getHeader(b"Upgrade")
+        if upgrade is None or b"websocket" not in upgrade.lower():
             # 4.2.1.3 Upgrade: WebSocket is required.
             failed = True
 
-        connection = request.getHeader("Connection")
-        if connection is None or "upgrade" not in connection.lower():
+        connection = request.getHeader(b"Connection")
+        if connection is None or b"upgrade" not in connection.lower():
             # 4.2.1.4 Connection: Upgrade is required.
             failed = True
 
-        key = request.getHeader("Sec-WebSocket-Key")
+        key = request.getHeader(b"Sec-WebSocket-Key")
         if key is None:
             # 4.2.1.5 The challenge key is required.
             failed = True
 
-        version = request.getHeader("Sec-WebSocket-Version")
-        if version != "13":
+        version = request.getHeader(b"Sec-WebSocket-Version")
+        if version != b"13":
             # 4.2.1.6 Only version 13 works.
             failed = True
             # 4.4 Forward-compatible version checking.
-            request.setHeader("Sec-WebSocket-Version", "13")
+            request.setHeader(b"Sec-WebSocket-Version", b"13")
 
         if failed:
             request.setResponseCode(400)
-            return ""
+            return b""
 
         askedProtocols = request.requestHeaders.getRawHeaders(
-            "Sec-WebSocket-Protocol")
+            b"Sec-WebSocket-Protocol")
         protocol, protocolName = self.lookupProtocol(askedProtocols, request)
 
         # If a protocol is not created, we deliver an error status.
         if not protocol.wrappedProtocol:
             request.setResponseCode(502)
-            return ""
+            return b""
 
         # We are going to finish this handshake. We will return a valid status
         # code.
         # 4.2.2.5.1 101 Switching Protocols
         request.setResponseCode(101)
         # 4.2.2.5.2 Upgrade: websocket
-        request.setHeader("Upgrade", "WebSocket")
+        request.setHeader(b"Upgrade", b"WebSocket")
         # 4.2.2.5.3 Connection: Upgrade
-        request.setHeader("Connection", "Upgrade")
+        request.setHeader(b"Connection", b"Upgrade")
         # 4.2.2.5.4 Response to the key challenge
-        request.setHeader("Sec-WebSocket-Accept", _makeAccept(key))
+        request.setHeader(b"Sec-WebSocket-Accept", _makeAccept(key))
         # 4.2.2.5.5 Optional codec declaration
         if protocolName:
-            request.setHeader("Sec-WebSocket-Protocol", protocolName)
+            request.setHeader(b"Sec-WebSocket-Protocol", protocolName)
 
         # Provoke request into flushing headers and finishing the handshake.
-        request.write("")
+        request.write(b"")
 
         # And now take matters into our own hands. We shall manage the
         # transport's lifecycle.

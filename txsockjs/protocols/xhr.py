@@ -53,7 +53,7 @@ class XHRSend(StubResource):
     def render_POST(self, request):
         self.parent.setBaseHeaders(request)
         request.setResponseCode(http.NO_CONTENT)
-        request.setHeader('content-type', 'text/plain; charset=UTF-8')
+        request.setHeader(b'content-type', b'text/plain; charset=UTF-8')
         ret = self.session.dataReceived(request.content.read())
         if not ret:
             return ""
@@ -66,7 +66,7 @@ class XHRStream(StubResource):
     
     def render_POST(self, request):
         self.parent.setBaseHeaders(request)
-        request.setHeader('content-type', 'application/javascript; charset=UTF-8')
+        request.setHeader(b'content-type', b'application/javascript; charset=UTF-8')
         request.write((b'h' * 2048) + b'\n')
         return self.connect(request)
     

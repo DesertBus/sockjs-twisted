@@ -61,6 +61,7 @@ class JsonProtocol(PeerOverrideProtocol):
         self.writeSequence([data])
     
     def writeSequence(self, data):
+        import pdb; pdb.set_trace()
         data = list(data)
         for index, p in enumerate(data):
             data[index] = normalize(p, self.parent._options['encoding'])
@@ -83,7 +84,7 @@ class JsonProtocol(PeerOverrideProtocol):
         if not data:
             return
         try:
-            dat = json.loads(data)
+            dat = json.loads(data.decode('iso-8859-1'))
         except ValueError:
             self.transport.loseConnection()
         else:
@@ -124,20 +125,20 @@ class RawWebSocket(WebSocketsResource, OldWebSocketsResource):
         if self._factory is None:
             self._makeFactory()
         # Override handling of invalid methods, returning 400 makes SockJS mad
-        if request.method != 'GET':
+        if request.method != b'GET':
             request.setResponseCode(405)
             request.defaultContentType = None # SockJS wants this gone
-            request.setHeader('Allow','GET')
-            return ""
+            request.setHeader(b'Allow', b'GET')
+            return b""
         # Override handling of lack of headers, again SockJS requires non-RFC stuff
-        upgrade = request.getHeader("Upgrade")
-        if upgrade is None or "websocket" not in upgrade.lower():
+        upgrade = request.getHeader(b"Upgrade")
+        if upgrade is None or b"websocket" not in upgrade.lower():
             request.setResponseCode(400)
-            return 'Can "Upgrade" only to "WebSocket".'
-        connection = request.getHeader("Connection")
-        if connection is None or "upgrade" not in connection.lower():
+            return b'Can "Upgrade" only to "WebSocket".'
+        connection = request.getHeader(b"Connection")
+        if connection is None or b"upgrade" not in connection.lower():
             request.setResponseCode(400)
-            return '"Connection" must be "Upgrade".'
+            return b'"Connection" must be "Upgrade".'
         # Defer to inherited methods
         ret = WebSocketsResource.render(self, request) # For RFC versions of websockets
         if ret is NOT_DONE_YET:

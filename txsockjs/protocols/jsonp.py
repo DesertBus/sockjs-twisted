@@ -35,7 +35,7 @@ class JSONP(StubResource):
         if self.callback is None:
             request.setResponseCode(http.INTERNAL_SERVER_ERROR)
             return '"callback" parameter required'
-        request.setHeader('content-type', 'application/javascript; charset=UTF-8')
+        request.setHeader(b'content-type', b'application/javascript; charset=UTF-8')
         return self.connect(request)
     
     def write(self, data):
@@ -43,7 +43,8 @@ class JSONP(StubResource):
             self.session.requeue([data])
             return
         self.written = True
-        self.request.write("/**/{0}(\"{1}\");\r\n".format(self.callback, data.replace('\\','\\\\').replace('"','\\"')))
+        content = "/**/{0}(\"{1}\");\r\n".format(self.callback, data.replace('\\','\\\\').replace('"','\\"'))
+        self.request.write(content.encode('utf-8'))
         self.disconnect()
     
     def writeSequence(self, data):
@@ -53,11 +54,11 @@ class JSONP(StubResource):
 class JSONPSend(StubResource):
     def render_POST(self, request):
         self.parent.setBaseHeaders(request)
-        request.setHeader('content-type', 'text/plain; charset=UTF-8')
-        urlencoded = request.getHeader("Content-Type") == 'application/x-www-form-urlencoded'
+        request.setHeader(b'content-type', b'text/plain; charset=UTF-8')
+        urlencoded = request.getHeader(b"Content-Type") == b'application/x-www-form-urlencoded'
         data = request.args.get('d', [b''])[0] if urlencoded else request.content.read()
         ret = self.session.dataReceived(data)
         if not ret:
-            return "ok"
+            return b"ok"
         request.setResponseCode(http.INTERNAL_SERVER_ERROR)
         return ret + b"\r\n"

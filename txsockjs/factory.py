@@ -62,19 +62,19 @@ class SockJSResource(resource.Resource):
             self._options.update(options)
         # Just in case somebody wants to mess with these
         self._methods = {
-            'xhr': XHR,
-            'xhr_send': XHRSend,
-            'xhr_streaming': XHRStream,
-            'eventsource': EventSource,
-            'htmlfile': HTMLFile,
-            'jsonp': JSONP,
-            'jsonp_send': JSONPSend,
+            b'xhr': XHR,
+            b'xhr_send': XHRSend,
+            b'xhr_streaming': XHRStream,
+            b'eventsource': EventSource,
+            b'htmlfile': HTMLFile,
+            b'jsonp': JSONP,
+            b'jsonp_send': JSONPSend,
         }
-        self._writeMethods = ('xhr_send','jsonp_send')
+        self._writeMethods = (b'xhr_send', b'jsonp_send')
         # Static Resources
-        self.putChild("info",Info())
-        self.putChild("iframe.html",IFrame())
-        self.putChild("websocket",RawWebSocket())
+        self.putChild(b"info", Info())
+        self.putChild(b"iframe.html", IFrame())
+        self.putChild(b"websocket", RawWebSocket())
         # Since it's constant, we can declare the websocket handler up here
         self._websocket = WebSocket()
         self._websocket.parent = self
@@ -84,50 +84,50 @@ class SockJSResource(resource.Resource):
         if not name and not request.postpath:
             return self
         # Hacks to resove the iframe even when people are dumb
-        if len(name) > 10 and name[:6] == "iframe" and name[-5:] == ".html":
-            return self.children["iframe.html"]
+        if len(name) > 10 and name[:6] == b"iframe" and name[-5:] == b".html":
+            return self.children[b"iframe.html"]
         # Sessions must have 3 parts, name is already the first. Also, no periods in the loadbalancer
-        if len(request.postpath) != 2 or "." in name or not name:
+        if len(request.postpath) != 2 or b"." in name or not name:
             return resource.NoResource("No such child resource.")
         # Extract session & request type. Discard load balancer
         session, name = request.postpath
         # No periods in the session
-        if "." in session or not session:
+        if b"." in session or not session:
             return resource.NoResource("No such child resource.")
         # Websockets are a special case
-        if name == "websocket":
+        if name == b"websocket":
             return self._websocket
         # Reject invalid methods
         if name not in self._methods:
             return resource.NoResource("No such child resource.")
         # Reject writes to invalid sessions, unless just checking options
-        if name in self._writeMethods and session not in self._sessions and request.method != "OPTIONS":
+        if name in self._writeMethods and session not in self._sessions and request.method != b"OPTIONS":
             return resource.NoResource("No such child resource.")
         # Generate session if doesn't exist, unless just checking options
-        if session not in self._sessions and request.method != "OPTIONS":
+        if session not in self._sessions and request.method != b"OPTIONS":
             self._sessions[session] = Stub(self, session)
         # Delegate request to appropriate handler
-        return self._methods[name](self, self._sessions[session] if request.method != "OPTIONS" else None)
+        return self._methods[name](self, self._sessions[session] if request.method != b"OPTIONS" else None)
     
     def putChild(self, path, child):
         child.parent = self
         resource.Resource.putChild(self, path, child)
     
     def setBaseHeaders(self, request, cookie=True):
-        origin = request.getHeader("Origin")
-        headers = request.getHeader('Access-Control-Request-Headers')
-        if origin is None or origin == "null":
-            origin = "*"
-        request.setHeader('access-control-allow-origin', origin)
-        request.setHeader('access-control-allow-credentials', 'true')
-        request.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0')
+        origin = request.getHeader(b"Origin")
+        headers = request.getHeader(b'Access-Control-Request-Headers')
+        if origin is None or origin == b'null':
+            origin = b"*"
+        request.setHeader(b'access-control-allow-origin', origin)
+        request.setHeader(b'access-control-allow-credentials', b'true')
+        request.setHeader(b'Cache-Control', b'no-store, no-cache, must-revalidate, max-age=0')
         if headers is not None:
-            request.setHeader('Access-Control-Allow-Headers', headers)
+            request.setHeader(b'Access-Control-Allow-Headers', headers)
         if self._options["cookie_needed"] and cookie:
-            cookie = request.getCookie("JSESSIONID") if request.getCookie("JSESSIONID") else "dummy"
-            request.addCookie("JSESSIONID", cookie, path="/")
+            cookie = request.getCookie(b"JSESSIONID") if request.getCookie(b"JSESSIONID") else b"dummy"
+            request.addCookie(b"JSESSIONID", cookie, path=b"/")
     
     def render_GET(self, request):
         self.setBaseHeaders(request,False)
-        request.setHeader('content-type', 'text/plain; charset=UTF-8')
-        return "Welcome to SockJS!\n"
+        request.setHeader(b'content-type', b'text/plain; charset=UTF-8')
+        return b"Welcome to SockJS!\n"
