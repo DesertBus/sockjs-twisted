@@ -41,3 +41,4 @@ share
 .eggs
 local
 pip-selfcheck.json
+man

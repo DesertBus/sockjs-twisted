@@ -1,6 +1,7 @@
 ﻿#!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
+from six import PY2
 from twisted.trial import unittest
 from txsockjs import utils
 
@@ -14,14 +15,15 @@ class UtilsTestCase(unittest.TestCase):
     encoding = "cp1252"
     def test_normalize(self):
         for s in [
-                "Hello!",
+                b"Hello!",
                 u"こんにちは！",
                 ("Hello!", u"こんにちは！"),
                 {"Hello!": u"こんにちは！"}]:
             n = utils.normalize(s, self.encoding)
-            self.assertTrue(isinstance(n, bytes))
-            self.assertEqual(
-                n, n.decode('utf-8', 'ignore').encode('utf-8', 'ignore'))
+            self.assertTrue(isinstance(n, str))
+            if PY2:
+                self.assertEqual(
+                    n, n.decode('utf-8', 'ignore').encode('utf-8', 'ignore'))
 
     def test_broadcast(self):
         targets = [MockTransport(), MockTransport(), MockTransport()]

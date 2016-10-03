@@ -61,7 +61,6 @@ class JsonProtocol(PeerOverrideProtocol):
         self.writeSequence([data])
     
     def writeSequence(self, data):
-        import pdb; pdb.set_trace()
         data = list(data)
         for index, p in enumerate(data):
             data[index] = normalize(p, self.parent._options['encoding'])
@@ -93,7 +92,7 @@ class JsonProtocol(PeerOverrideProtocol):
                 ProtocolWrapper.dataReceived(self, d)
 
     def heartbeat(self):
-        self.transport.write('h')
+        self.transport.write(b'h')
         self.heartbeat_timer = reactor.callLater(self.parent._options['heartbeat'], self.heartbeat)
 
 class PeerOverrideFactory(WrappingFactory):

@@ -28,19 +28,18 @@ import json
 
 
 def normalize(s, encoding):
-    """Return bytes encoded in UTF-8.
-
-    If bytes are provided, decode using the given encoding
-    and re-encode as UTF-8.
+    """Return a str or unicode ready to be encoded in JSON.
     """
+    if PY3:
+        if isinstance(s, binary_type):
+            return s.decode('utf-8')
+        return str(s)
+
     if not isinstance(s, string_types):
-        if PY3:
-            return str(s).encode('utf-8', 'backslashreplace')
-        else:
-            try:
-                return str(s)
-            except UnicodeEncodeError:
-                return text_type(s).encode('utf-8', 'backslashreplace')
+        try:
+            return str(s)
+        except UnicodeEncodeError:
+            return text_type(s).encode('utf-8', 'backslashreplace')
     elif isinstance(s, text_type):
         return s.encode('utf-8', 'backslashreplace')
     else:
@@ -55,7 +54,7 @@ def normalize(s, encoding):
 
 
 def broadcast(message, targets, encoding="cp1252"):
-    message = normalize(message, encoding).decode('utf-8')
+    message = normalize(message, encoding)
     json_msg = (
         'a{0}'.format(json.dumps([message], separators=(',', ':')))
         .encode('ascii'))
