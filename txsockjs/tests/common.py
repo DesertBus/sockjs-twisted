@@ -4,6 +4,7 @@
 from six import BytesIO
 from twisted.internet.protocol import Protocol, Factory
 from twisted.trial import unittest
+from twisted.web.server import NOT_DONE_YET
 from twisted.web.test.test_web import DummyRequest
 from twisted.test.proto_helpers import StringTransport
 from twisted.internet.defer import succeed
@@ -59,7 +60,7 @@ class BaseUnitTest(unittest.TestCase):
             request.write(result)
             request.finish()
             return succeed(None)
-        elif result is server.NOT_DONE_YET:
+        elif result is NOT_DONE_YET:
             if request.finished:
                 return succeed(None)
             else:

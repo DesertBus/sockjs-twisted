@@ -102,24 +102,24 @@ class FactoryUnitTest(BaseUnitTest):
         req = Request(b"POST", [b'a', b'a', b'xhr_send'])
         res = self.site.getResourceFor(req)
         self.assertTrue(isinstance(res, NoResource))
-    
-    # @inlineCallbacks
-    # def test_ignore_server_id(self):
-    #     # Open session
-    #     req = Request("POST", ['000','a','xhr'])
-    #     res = self.site.getResourceFor(req)
-    #     yield self._render(res, req)
-    #     self.assertEqual(req.value(), 'o\n')
-    #     # Write data to session
-    #     req = Request("POST", ['000','a','xhr_send'])
-    #     req.writeContent('["a"]')
-    #     res = self.site.getResourceFor(req)
-    #     yield self._render(res, req)
-    #     # Ensure it appears despite different Server ID
-    #     req = Request("POST", ['999','a','xhr'])
-    #     res = self.site.getResourceFor(req)
-    #     yield self._render(res, req)
-    #     self.assertEqual(req.value(), 'a["a"]\n')
-    #     # Clean up
-    #     for p in self.site.resource._sessions.values():
-    #         p.disconnect()
+
+    @inlineCallbacks
+    def test_ignore_server_id(self):
+        # Open session
+        req = Request(b"POST", [b'000', b'a', b'xhr'])
+        res = self.site.getResourceFor(req)
+        yield self._render(res, req)
+        self.assertEqual(req.value(), b'o\n')
+        # Write data to session
+        req = Request(b"POST", [b'000', b'a', b'xhr_send'])
+        req.writeContent(b'["a"]')
+        res = self.site.getResourceFor(req)
+        yield self._render(res, req)
+        # Ensure it appears despite different Server ID
+        req = Request(b"POST", [b'999', b'a', b'xhr'])
+        res = self.site.getResourceFor(req)
+        yield self._render(res, req)
+        self.assertEqual(req.value(), b'a["a"]\n')
+        # Clean up
+        for p in list(self.site.resource._sessions.values()):
+            p.disconnect()

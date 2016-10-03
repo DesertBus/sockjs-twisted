@@ -56,7 +56,8 @@ class StubResource(resource.Resource, ProtocolWrapper):
         directlyProvides(self, providedBy(request.transport))
         protocol.Protocol.makeConnection(self, request.transport)
         self.session.makeConnection(self)
-        request.notifyFinish().addErrback(self.connectionLost)
+        if not request.finished:
+            request.notifyFinish().addErrback(self.connectionLost)
         return server.NOT_DONE_YET
     
     def disconnect(self):
