@@ -47,7 +47,7 @@ class StubResource(resource.Resource, ProtocolWrapper):
         request.setHeader(b'access-control-max-age', b'31536000')
         request.setHeader(b'Expires', b'Fri, 01 Jan 2500 00:00:00 GMT') #Get a new library by then
         request.setHeader(b'Access-Control-Allow-Methods', b'OPTIONS, {0}'.format(method)) # Hardcoding this may be bad?
-        return ""
+        return b""
     
     def connect(self, request):
         if self.session.attached:
@@ -193,7 +193,7 @@ class Stub(ProtocolWrapper):
         if not data:
             return "Payload expected."
         try:
-            packets = json.loads(data.decode('iso-8859-1'))
+            packets = json.loads(data.decode('utf-8'))
             for p in packets:
                 p = normalize(p, self.parent._options['encoding'])
                 if self.protocol:

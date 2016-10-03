@@ -23,6 +23,7 @@
 # OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
 # OF THE POSSIBILITY OF SUCH DAMAGE.
 
+from six import text_type
 from twisted.web import http
 from txsockjs.protocols.base import StubResource
 
@@ -31,10 +32,11 @@ class JSONP(StubResource):
     
     def render_GET(self, request):
         self.parent.setBaseHeaders(request)
-        self.callback = request.args.get('c',[None])[0]
-        if self.callback is None:
+        callback = request.args.get(b'c', [None])[0]
+        if callback is None:
             request.setResponseCode(http.INTERNAL_SERVER_ERROR)
             return '"callback" parameter required'
+        self.callback = callback.decode('utf-8')
         request.setHeader(b'content-type', b'application/javascript; charset=UTF-8')
         return self.connect(request)
     
@@ -43,6 +45,8 @@ class JSONP(StubResource):
             self.session.requeue([data])
             return
         self.written = True
+        if not isinstance(data, text_type):
+            data = data.decode('utf-8')
         content = "/**/{0}(\"{1}\");\r\n".format(self.callback, data.replace('\\','\\\\').replace('"','\\"'))
         self.request.write(content.encode('utf-8'))
         self.disconnect()
@@ -56,7 +60,7 @@ class JSONPSend(StubResource):
         self.parent.setBaseHeaders(request)
         request.setHeader(b'content-type', b'text/plain; charset=UTF-8')
         urlencoded = request.getHeader(b"Content-Type") == b'application/x-www-form-urlencoded'
-        data = request.args.get('d', [b''])[0] if urlencoded else request.content.read()
+        data = request.args.get(b'd', [b''])[0] if urlencoded else request.content.read()
         ret = self.session.dataReceived(data)
         if not ret:
             return b"ok"

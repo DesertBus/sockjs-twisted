@@ -83,7 +83,7 @@ class JsonProtocol(PeerOverrideProtocol):
         if not data:
             return
         try:
-            dat = json.loads(data.decode('iso-8859-1'))
+            dat = json.loads(data.decode('utf-8'))
         except ValueError:
             self.transport.loseConnection()
         else:

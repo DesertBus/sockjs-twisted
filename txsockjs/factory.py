@@ -54,7 +54,7 @@ class SockJSResource(resource.Resource):
             'heartbeat': 25,
             'timeout': 5,
             'streaming_limit': 128 * 1024,
-            'encoding': 'cp1252', #Latin1
+            'encoding': 'latin-1',
             'sockjs_url': 'https://d1fxtkz8shb9d2.cloudfront.net/sockjs-0.3.js',
             'proxy_header': None
         }

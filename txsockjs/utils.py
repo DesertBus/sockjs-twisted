@@ -53,7 +53,7 @@ def normalize(s, encoding):
                 'utf-8', 'backslashreplace')
 
 
-def broadcast(message, targets, encoding="cp1252"):
+def broadcast(message, targets, encoding="latin-1"):
     message = normalize(message, encoding)
     json_msg = (
         'a{0}'.format(json.dumps([message], separators=(',', ':')))

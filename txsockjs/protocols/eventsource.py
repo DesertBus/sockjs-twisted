@@ -23,6 +23,7 @@
 # OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
 # OF THE POSSIBILITY OF SUCH DAMAGE.
 
+from six import text_type
 from txsockjs.protocols.base import StubResource
 
 class EventSource(StubResource):
@@ -39,7 +40,9 @@ class EventSource(StubResource):
         if self.done:
             self.session.requeue([data])
             return
-        packet = b''.join(b'data: ', data, b'\r\n\r\n')
+        if isinstance(data, text_type):
+            data = data.encode('iso-8859-1')
+        packet = b''.join([b'data: ', data, b'\r\n\r\n'])
         self.sent += len(packet)
         self.request.write(packet)
         if self.sent > self.parent._options['streaming_limit']:

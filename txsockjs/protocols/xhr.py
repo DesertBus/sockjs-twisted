@@ -56,9 +56,9 @@ class XHRSend(StubResource):
         request.setHeader(b'content-type', b'text/plain; charset=UTF-8')
         ret = self.session.dataReceived(request.content.read())
         if not ret:
-            return ""
+            return b""
         request.setResponseCode(http.INTERNAL_SERVER_ERROR)
-        return "{0}\r\n".format(ret)
+        return b"{0}\r\n".format(ret)
 
 class XHRStream(StubResource):
     sent = 0
