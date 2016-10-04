@@ -40,13 +40,13 @@ class StubResource(resource.Resource, ProtocolWrapper):
         self.putChild("", self)
     
     def render_OPTIONS(self, request):
-        method = "POST" if getattr(self, "render_POST", None) is not None else "GET"
+        method = b"POST" if getattr(self, "render_POST", None) is not None else b"GET"
         request.setResponseCode(http.NO_CONTENT)
         self.parent.setBaseHeaders(request,False)
         request.setHeader(b'Cache-Control', b'public, max-age=31536000')
         request.setHeader(b'access-control-max-age', b'31536000')
         request.setHeader(b'Expires', b'Fri, 01 Jan 2500 00:00:00 GMT') #Get a new library by then
-        request.setHeader(b'Access-Control-Allow-Methods', b'OPTIONS, {0}'.format(method)) # Hardcoding this may be bad?
+        request.setHeader(b'Access-Control-Allow-Methods', b'OPTIONS, ' + method) # Hardcoding this may be bad?
         return b""
     
     def connect(self, request):

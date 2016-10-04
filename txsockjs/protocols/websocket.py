@@ -23,19 +23,15 @@
 # OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
 # OF THE POSSIBILITY OF SUCH DAMAGE.
 
-try:
-    from twisted.web.websockets import WebSocketsResource
-except ImportError:
-    from txsockjs.websockets import WebSocketsResource
+from txsockjs.websockets import WebSocketsResource
 
 from zope.interface import directlyProvides, providedBy
 from twisted.internet import reactor, address
 from twisted.internet.protocol import Protocol
 from twisted.protocols.policies import WrappingFactory, ProtocolWrapper
-from twisted.web.server import NOT_DONE_YET
-from txsockjs.oldwebsockets import OldWebSocketsResource
 from txsockjs.utils import normalize
-import json, re
+import json
+import re
 
 
 class PeerOverrideProtocol(ProtocolWrapper):
@@ -101,14 +97,13 @@ class PeerOverrideFactory(WrappingFactory):
 class JsonFactory(WrappingFactory):
     protocol = JsonProtocol
 
-class RawWebSocket(WebSocketsResource, OldWebSocketsResource):
+class RawWebSocket(WebSocketsResource):
     def __init__(self):
         self._factory = None
     
     def _makeFactory(self):
         f = PeerOverrideFactory(self.parent._factory)
         WebSocketsResource.__init__(self, self.parent._factory) 
-        OldWebSocketsResource.__init__(self, self.parent._factory)
 
     def lookupProtocol(self, protocolNames, request, old = False):
         if old:
@@ -139,13 +134,10 @@ class RawWebSocket(WebSocketsResource, OldWebSocketsResource):
             request.setResponseCode(400)
             return b'"Connection" must be "Upgrade".'
         # Defer to inherited methods
-        ret = WebSocketsResource.render(self, request) # For RFC versions of websockets
-        if ret is NOT_DONE_YET:
-            return ret
-        return OldWebSocketsResource.render(self, request) # For non-RFC versions of websockets
+        ret = WebSocketsResource.render(self, request)
+        return ret
 
 class WebSocket(RawWebSocket):
     def _makeFactory(self):
         f = JsonFactory(self.parent._factory)
         WebSocketsResource.__init__(self, f)
-        OldWebSocketsResource.__init__(self, f)
