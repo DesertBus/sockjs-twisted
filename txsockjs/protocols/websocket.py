@@ -48,7 +48,7 @@ class PeerOverrideProtocol(ProtocolWrapper):
                 return address.IPv6Address("TCP", ip, None)
         return ProtocolWrapper.getPeer(self)
 
-class JsonProtocol(PeerOverrideProtocol):
+class JsonProtocol(PeerOverrideProtocol, object):
     def makeConnection(self, transport):
         directlyProvides(self, providedBy(transport))
         Protocol.makeConnection(self, transport)
