@@ -263,7 +263,7 @@ def _parseFrames(buf):
 
 
 
-class _WebSocketsProtocol(ProtocolWrapper):
+class _WebSocketsProtocol(ProtocolWrapper, object):
     """
     Protocol which wraps another protocol to provide a WebSockets transport
     layer.
