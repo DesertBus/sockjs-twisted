@@ -105,7 +105,7 @@ def _makeAccept(key):
     @rtype: C{bytes}
     @return: An encoded response.
     """
-    return b64encode(sha1(b"%s%s" % (key, _WS_GUID)).digest()).strip()
+    return b64encode(sha1(b''.join([key, _WS_GUID])).digest()).strip()
 
 
 
@@ -161,15 +161,15 @@ def _makeFrame(buf, _opcode=_CONTROLS.NORMAL):
     bufferLength = len(buf)
 
     if bufferLength > 0xffff:
-        length = b"\x7f%s" % pack(">Q", bufferLength)
+        length = b'\x7f' + pack(">Q", bufferLength)
     elif bufferLength > 0x7d:
-        length = b"\x7e%s" % pack(">H", bufferLength)
+        length = b'\x7e' + pack(">H", bufferLength)
     else:
         length = int2byte(bufferLength)
 
     # Always make a normal packet.
     header = int2byte(0x80 | _opcodeForType[_opcode])
-    frame = b"%s%s%s" % (header, length, buf)
+    frame = b''.join([header, length, buf])
     return frame
 
 
