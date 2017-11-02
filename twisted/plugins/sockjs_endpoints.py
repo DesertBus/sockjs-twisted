@@ -23,15 +23,14 @@
 # OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
 # OF THE POSSIBILITY OF SUCH DAMAGE.
 
-from zope.interface import implements
+from zope.interface import implementer
 from twisted.plugin import IPlugin
 from twisted.internet.interfaces import IStreamServerEndpointStringParser, IStreamServerEndpoint
 from twisted.internet.endpoints import serverFromString
 from txsockjs.factory import SockJSFactory
 
+@implementer(IPlugin, IStreamServerEndpointStringParser)
 class SockJSServerParser(object):
-	implements(IPlugin, IStreamServerEndpointStringParser)
-
 	prefix = "sockjs"
 
 	def parseStreamServer(self, reactor, description, **options):
@@ -53,9 +52,8 @@ class SockJSServerParser(object):
 		endpoint = serverFromString(reactor, description)
 		return SockJSServerEndpoint(endpoint, options)
 
+@implementer(IPlugin, IStreamServerEndpoint)
 class SockJSServerEndpoint(object):
-	implements(IPlugin, IStreamServerEndpoint)
-
 	def __init__(self, endpoint, options):
 		self._endpoint = endpoint
 		self._options = options
