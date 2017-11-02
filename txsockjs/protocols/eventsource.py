@@ -45,7 +45,7 @@ class EventSource(StubResource):
         packet = b''.join([b'data: ', data, b'\r\n\r\n'])
         self.sent += len(packet)
         self.request.write(packet)
-        if self.sent > self.parent._options['streaming_limit']:
+        if self.sent >= self.parent._options['streaming_limit']:
             self.done = True
             self.disconnect()
     

@@ -84,8 +84,7 @@ class JsonProtocol(PeerOverrideProtocol):
             self.transport.loseConnection()
         else:
             for d in dat:
-                d = normalize(d, self.parent._options['encoding'])
-                ProtocolWrapper.dataReceived(self, d)
+                ProtocolWrapper.dataReceived(self, d.encode('utf-8'))
 
     def heartbeat(self):
         self.transport.write(b'h')

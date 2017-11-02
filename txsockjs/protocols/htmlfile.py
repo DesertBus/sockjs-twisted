@@ -26,19 +26,26 @@
 from six import text_type
 from twisted.web import http
 from txsockjs.protocols.base import StubResource
+import re
+
+callback_re = re.compile(r'^[a-zA-Z0-9-_.]+$')
+
 
 class HTMLFile(StubResource):
     sent = 0
     done = False
-    
+
     def render_GET(self, request):
         self.parent.setBaseHeaders(request)
         callback = request.args.get(b'c', [None])[0]
         if callback is None:
             request.setResponseCode(http.INTERNAL_SERVER_ERROR)
             return b'"callback" parameter required'
-        request.setHeader(b'content-type', b'text/html; charset=UTF-8')
         callback = callback.decode('utf-8')
+        if not callback_re.match(callback):
+            request.setResponseCode(http.INTERNAL_SERVER_ERROR)
+            return b'invalid "callback" parameter'
+        request.setHeader(b'content-type', b'text/html; charset=UTF-8')
         request.write(r'''
 <!doctype html>
 <html><head>

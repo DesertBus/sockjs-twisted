@@ -47,7 +47,7 @@ class Info(resource.Resource):
         return b""
 
 class IFrame(resource.Resource):
-    etag = '00000000-0000-0000-0000-000000000000'
+    etag = b'00000000-0000-0000-0000-000000000000'
 
     def render_GET(self, request):
         self.parent.setBaseHeaders(request,False)
@@ -58,7 +58,7 @@ class IFrame(resource.Resource):
         request.setHeader(b'Cache-Control', b'public, max-age=31536000')
         request.setHeader(b'access-control-max-age', b'31536000')
         request.setHeader(b'Expires', b'Fri, 01 Jan 2500 00:00:00 GMT') #Get a new library by then
-        return '''
+        return '''\
 <!DOCTYPE html>
 <html>
 <head>

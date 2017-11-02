@@ -23,6 +23,7 @@
 # OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
 # OF THE POSSIBILITY OF SUCH DAMAGE.
 
+from six import text_type
 from twisted.web import resource, http
 from txsockjs.protocols.base import StubResource
 
@@ -57,8 +58,10 @@ class XHRSend(StubResource):
         ret = self.session.dataReceived(request.content.read())
         if not ret:
             return b""
+        if isinstance(ret, text_type):
+            ret = ret.encode('utf-8')
         request.setResponseCode(http.INTERNAL_SERVER_ERROR)
-        return b"{0}\r\n".format(ret)
+        return ret + b"\r\n"
 
 class XHRStream(StubResource):
     sent = 0

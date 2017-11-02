@@ -74,10 +74,11 @@ class SockJSResource(resource.Resource):
         # Static Resources
         self.putChild(b"info", Info())
         self.putChild(b"iframe.html", IFrame())
-        self.putChild(b"websocket", RawWebSocket())
-        # Since it's constant, we can declare the websocket handler up here
-        self._websocket = WebSocket()
-        self._websocket.parent = self
+        if self._options['websocket']:
+            self.putChild(b"websocket", RawWebSocket())
+            # Since it's constant, we can declare the websocket handler up here
+            self._websocket = WebSocket()
+            self._websocket.parent = self
     
     def getChild(self, name, request):
         # Check if it is the greeting url
@@ -95,7 +96,7 @@ class SockJSResource(resource.Resource):
         if b"." in session or not session:
             return resource.NoResource("No such child resource.")
         # Websockets are a special case
-        if name == b"websocket":
+        if name == b"websocket" and self._options['websocket']:
             return self._websocket
         # Reject invalid methods
         if name not in self._methods:
@@ -116,11 +117,13 @@ class SockJSResource(resource.Resource):
     def setBaseHeaders(self, request, cookie=True):
         origin = request.getHeader(b"Origin")
         headers = request.getHeader(b'Access-Control-Request-Headers')
-        if origin is None or origin == b'null':
-            origin = b"*"
+        if origin is None:
+            origin = b'null'
         request.setHeader(b'access-control-allow-origin', origin)
         request.setHeader(b'access-control-allow-credentials', b'true')
-        request.setHeader(b'Cache-Control', b'no-store, no-cache, must-revalidate, max-age=0')
+        request.setHeader(
+            b'Cache-Control',
+            b'no-store, no-cache, no-transform, must-revalidate, max-age=0')
         if headers is not None:
             request.setHeader(b'Access-Control-Allow-Headers', headers)
         if self._options["cookie_needed"] and cookie:

@@ -26,6 +26,10 @@
 from six import text_type
 from twisted.web import http
 from txsockjs.protocols.base import StubResource
+import re
+
+callback_re = re.compile(r'^[a-zA-Z0-9-_.]+$')
+
 
 class JSONP(StubResource):
     written = False
@@ -35,8 +39,12 @@ class JSONP(StubResource):
         callback = request.args.get(b'c', [None])[0]
         if callback is None:
             request.setResponseCode(http.INTERNAL_SERVER_ERROR)
-            return '"callback" parameter required'
-        self.callback = callback.decode('utf-8')
+            return b'"callback" parameter required'
+        callback = callback.decode('utf-8')
+        if not callback_re.match(callback):
+            request.setResponseCode(http.INTERNAL_SERVER_ERROR)
+            return b'invalid "callback" parameter'
+        self.callback = callback
         request.setHeader(b'content-type', b'application/javascript; charset=UTF-8')
         return self.connect(request)
     
@@ -64,5 +72,7 @@ class JSONPSend(StubResource):
         ret = self.session.dataReceived(data)
         if not ret:
             return b"ok"
+        if isinstance(ret, text_type):
+            ret = ret.encode('utf-8')
         request.setResponseCode(http.INTERNAL_SERVER_ERROR)
         return ret + b"\r\n"
