@@ -28,37 +28,37 @@ from twisted.web import resource, http
 class Info(resource.Resource):
     def render_GET(self, request):
         self.parent.setBaseHeaders(request,False)
-        request.setHeader('content-type', 'application/json; charset=UTF-8')
+        request.setHeader(b'content-type', b'application/json; charset=UTF-8')
         data = {
             'websocket': self.parent._options['websocket'],
             'cookie_needed': self.parent._options['cookie_needed'],
             'origins': ['*:*'],
             'entropy': random.randint(0,2**32-1)
         }
-        return json.dumps(data)
+        return json.dumps(data).encode('ascii')
     
     def render_OPTIONS(self, request):
         request.setResponseCode(http.NO_CONTENT)
         self.parent.setBaseHeaders(request,False)
-        request.setHeader('Cache-Control', 'public, max-age=31536000')
-        request.setHeader('access-control-max-age', '31536000')
-        request.setHeader('Expires', 'Fri, 01 Jan 2500 00:00:00 GMT') #Get a new library by then
-        request.setHeader('Access-Control-Allow-Methods', 'OPTIONS, GET') # Hardcoding this may be bad?
-        return ""
+        request.setHeader(b'Cache-Control', b'public, max-age=31536000')
+        request.setHeader(b'access-control-max-age', b'31536000')
+        request.setHeader(b'Expires', b'Fri, 01 Jan 2500 00:00:00 GMT') #Get a new library by then
+        request.setHeader(b'Access-Control-Allow-Methods', b'OPTIONS, GET') # Hardcoding this may be bad?
+        return b""
 
 class IFrame(resource.Resource):
-    etag = '00000000-0000-0000-0000-000000000000'
+    etag = b'00000000-0000-0000-0000-000000000000'
 
     def render_GET(self, request):
         self.parent.setBaseHeaders(request,False)
         if request.setETag(self.etag):
             request.setResponseCode(http.NOT_MODIFIED)
-            return ""
-        request.setHeader('content-type', 'text/html; charset=UTF-8')
-        request.setHeader('Cache-Control', 'public, max-age=31536000')
-        request.setHeader('access-control-max-age', '31536000')
-        request.setHeader('Expires', 'Fri, 01 Jan 2500 00:00:00 GMT') #Get a new library by then
-        return '''
+            return b""
+        request.setHeader(b'content-type', b'text/html; charset=UTF-8')
+        request.setHeader(b'Cache-Control', b'public, max-age=31536000')
+        request.setHeader(b'access-control-max-age', b'31536000')
+        request.setHeader(b'Expires', b'Fri, 01 Jan 2500 00:00:00 GMT') #Get a new library by then
+        return '''\
 <!DOCTYPE html>
 <html>
 <head>
@@ -74,4 +74,4 @@ class IFrame(resource.Resource):
   <h2>Don't panic!</h2>
   <p>This is a SockJS hidden iframe. It's used for cross domain magic.</p>
 </body>
-</html>'''.format(self.parent._options["sockjs_url"])
+</html>'''.format(self.parent._options["sockjs_url"]).encode('utf-8')

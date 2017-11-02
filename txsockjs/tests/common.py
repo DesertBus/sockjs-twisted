@@ -1,9 +1,10 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-from StringIO import StringIO
+from six import BytesIO
 from twisted.internet.protocol import Protocol, Factory
 from twisted.trial import unittest
+from twisted.web.server import NOT_DONE_YET
 from twisted.web.test.test_web import DummyRequest
 from twisted.test.proto_helpers import StringTransport
 from twisted.internet.defer import succeed
@@ -18,44 +19,48 @@ class EchoFactory(Factory):
     protocol = EchoProtocol
 
 class Request(DummyRequest):
-    def __init__(self, method, *args, **kwargs):
-        DummyRequest.__init__(self, *args, **kwargs)
+    def __init__(self, method, postpath, session=None):
+        DummyRequest.__init__(self, postpath, session=session)
         self.method = method
-        self.content = StringIO()
+        self.content = BytesIO()
         self.transport = StringTransport()
     
     def writeContent(self, data):
+        if not isinstance(data, bytes):
+            data = data.encode('ascii')
         self.content.seek(0,2) # Go to end of content
         self.content.write(data) # Write the data
         self.content.seek(0,0) # Go back to beginning of content
     
     def write(self, data):
         DummyRequest.write(self, data)
-        self.transport.write("".join(self.written))
+        self.transport.write(b"".join(self.written))
         self.written = []
     
     def value(self):
         return self.transport.value()
 
+
 class BaseUnitTest(unittest.TestCase):
+    method = 'GET'
     path = ['']
-    
+
     def setUp(self):
         self.site = SockJSFactory(EchoFactory())
-        self.request = Request(self.path)
-    
+        self.request = Request(self.method, self.path)
+
     @inlineCallbacks
     def _load(self):
         self.resource = self.site.getResourceFor(self.request)
         yield self._render(self.resource, self.request)
-    
-    def _render(resource, request):
+
+    def _render(self, resource, request):
         result = resource.render(request)
-        if isinstance(result, str):
+        if isinstance(result, bytes):
             request.write(result)
             request.finish()
             return succeed(None)
-        elif result is server.NOT_DONE_YET:
+        elif result is NOT_DONE_YET:
             if request.finished:
                 return succeed(None)
             else:

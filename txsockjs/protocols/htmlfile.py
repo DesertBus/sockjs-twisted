@@ -23,20 +23,29 @@
 # OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
 # OF THE POSSIBILITY OF SUCH DAMAGE.
 
+from six import text_type
 from twisted.web import http
 from txsockjs.protocols.base import StubResource
+import re
+
+callback_re = re.compile(r'^[a-zA-Z0-9-_.]+$')
+
 
 class HTMLFile(StubResource):
     sent = 0
     done = False
-    
+
     def render_GET(self, request):
         self.parent.setBaseHeaders(request)
-        callback = request.args.get('c',[None])[0]
+        callback = request.args.get(b'c', [None])[0]
         if callback is None:
             request.setResponseCode(http.INTERNAL_SERVER_ERROR)
-            return '"callback" parameter required'
-        request.setHeader('content-type', 'text/html; charset=UTF-8')
+            return b'"callback" parameter required'
+        callback = callback.decode('utf-8')
+        if not callback_re.match(callback):
+            request.setResponseCode(http.INTERNAL_SERVER_ERROR)
+            return b'invalid "callback" parameter'
+        request.setHeader(b'content-type', b'text/html; charset=UTF-8')
         request.write(r'''
 <!doctype html>
 <html><head>
@@ -50,16 +59,18 @@ class HTMLFile(StubResource):
     function p(d) {{c.message(d);}};
     window.onload = function() {{c.stop();}};
   </script>{1}
-'''.format(callback, ' '*1024))
+'''.format(callback, ' '*1024).encode('utf-8'))
         return self.connect(request)
     
     def write(self, data):
         if self.done:
             self.session.requeue([data])
             return
+        if not isinstance(data, text_type):
+            data = data.decode('utf-8')
         packet = "<script>\np(\"{0}\");\n</script>\r\n".format(data.replace('\\','\\\\').replace('"','\\"'))
         self.sent += len(packet)
-        self.request.write(packet)
+        self.request.write(packet.encode('utf-8'))
         if self.sent > self.parent._options['streaming_limit']:
             self.done = True
             self.disconnect()

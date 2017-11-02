@@ -52,14 +52,14 @@ class MultiplexProtocol(Protocol):
         self.factory._connections[self] = {}
     
     def dataReceived(self, message):
-        type, chaff, topic = message.partition(",")
-        if "," in topic:
+        type, chaff, topic = message.partition(b",")
+        if b"," in topic:
             topic, chaff, payload = topic.partition(",")
-        if type == "sub":
+        if type == b"sub":
             self.factory.subscribe(self, topic)
-        elif type == "msg":
+        elif type == b"msg":
             self.factory.handleMessage(self, topic, payload)
-        elif type == "uns":
+        elif type == b"uns":
             self.factory.unsubscribe(self, topic)
     
     def connectionLost(self, reason=None):

@@ -32,3 +32,13 @@ pip-log.txt
 
 # Mac crap
 .DS_Store
+
+pyvenv.cfg
+lib
+lib64
+include
+share
+.eggs
+local
+pip-selfcheck.json
+man

@@ -23,6 +23,7 @@
 # OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
 # OF THE POSSIBILITY OF SUCH DAMAGE.
 
+from six import text_type
 from twisted.web import resource, http
 from txsockjs.protocols.base import StubResource
 
@@ -35,11 +36,13 @@ class XHR(StubResource):
         return self.connect(request)
     
     def write(self, data):
+        if not isinstance(data, bytes):
+            data = data.encode('utf-8')
         if self.written:
             self.session.requeue([data])
             return
         self.written = True
-        self.request.write("{0}\n".format(data))
+        self.request.write(data + b'\n')
         self.disconnect()
     
     def writeSequence(self, data):
@@ -51,12 +54,14 @@ class XHRSend(StubResource):
     def render_POST(self, request):
         self.parent.setBaseHeaders(request)
         request.setResponseCode(http.NO_CONTENT)
-        request.setHeader('content-type', 'text/plain; charset=UTF-8')
+        request.setHeader(b'content-type', b'text/plain; charset=UTF-8')
         ret = self.session.dataReceived(request.content.read())
         if not ret:
-            return ""
+            return b""
+        if isinstance(ret, text_type):
+            ret = ret.encode('utf-8')
         request.setResponseCode(http.INTERNAL_SERVER_ERROR)
-        return "{0}\r\n".format(ret)
+        return ret + b"\r\n"
 
 class XHRStream(StubResource):
     sent = 0
@@ -64,15 +69,17 @@ class XHRStream(StubResource):
     
     def render_POST(self, request):
         self.parent.setBaseHeaders(request)
-        request.setHeader('content-type', 'application/javascript; charset=UTF-8')
-        request.write("{0}\n".format('h'*2048))
+        request.setHeader(b'content-type', b'application/javascript; charset=UTF-8')
+        request.write((b'h' * 2048) + b'\n')
         return self.connect(request)
     
     def write(self, data):
+        if not isinstance(data, bytes):
+            data = data.encode('utf-8')
         if self.done:
             self.session.requeue([data])
             return
-        packet = "{0}\n".format(data)
+        packet = data + b'\n'
         self.sent += len(packet)
         self.request.write(packet)
         if self.sent > self.parent._options['streaming_limit']:

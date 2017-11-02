@@ -3,7 +3,7 @@ from twisted.web import static, server, resource
 from OpenSSL import SSL
 from txsockjs.factory import SockJSResource
 
-SECURE = True
+SECURE = False
 
 ### The website
 
@@ -13,24 +13,24 @@ class Config(resource.Resource):
         request.setHeader('content-type', 'application/javascript; charset=UTF-8')
         return """var client_opts = {{
     // Address of a sockjs test server.
-    url: 'http{}://irc.fugiman.com:8081',
+    url: 'http{}://localhost:8081',
     sockjs_opts: {{
         devel: true,
         debug: true,
         info: {{cookie_needed:false}}
     }}
-}};""".format("s" if SECURE else "")
+}};""".format("s" if SECURE else "").encode('ascii')
 
 class SlowScript(resource.Resource):
     isLeaf = True
     def render_GET(self, request):
         request.setHeader('content-type', 'application/javascript; charset=UTF-8')
-        request.write("")
+        request.write(b"")
         reactor.callLater(0.500, self.done, request)
         return server.NOT_DONE_YET
     
     def done(self, request):
-        request.write("var a = 1;\n")
+        request.write(b"var a = 1;\n")
         request.finish()
 
 class Streaming(resource.Resource):
@@ -38,12 +38,12 @@ class Streaming(resource.Resource):
     def render_GET(self, request):
         request.setHeader('content-type', 'text/plain; charset=UTF-8')
         request.setHeader('Access-Control-Allow-Origin', '*')
-        request.write("a"*2048+"\n")
+        request.write(b"a"*2048+b"\n")
         reactor.callLater(0.250, self.done, request)
         return server.NOT_DONE_YET
     
     def done(self, request):
-        request.write("b\n")
+        request.write(b"b\n")
         request.finish()
 
 class Simple(resource.Resource):
@@ -51,20 +51,20 @@ class Simple(resource.Resource):
     def render_GET(self, request):
         request.setHeader('content-type', 'text/plain; charset=UTF-8')
         request.setHeader('Access-Control-Allow-Origin', '*')
-        return "a"*2048+"\nb\n"
+        return b"a"*2048+b"\nb\n"
 
 class WrongURL(resource.Resource):
     isLeaf = True
     def render_GET(self, request):
         request.setResponseCode(404)
-        return ""
+        return b""
 
 website_root = static.File("qunit/html")
-website_root.putChild("slow-script.js", SlowScript())
-website_root.putChild("streaming.txt", Streaming())
-website_root.putChild("simple.txt", Simple())
-website_root.putChild("wrong_url_indeed.txt", WrongURL())
-website_root.putChild("config.js", Config())
+website_root.putChild(b"slow-script.js", SlowScript())
+website_root.putChild(b"streaming.txt", Streaming())
+website_root.putChild(b"simple.txt", Simple())
+website_root.putChild(b"wrong_url_indeed.txt", WrongURL())
+website_root.putChild(b"config.js", Config())
 website = server.Site(website_root)
 reactor.listenTCP(8082, website)
 
@@ -90,7 +90,7 @@ class Ticker(protocol.Protocol):
         self.ticker = reactor.callLater(1, self.tick)
     
     def tick(self):
-        self.transport.write("tick!")
+        self.transport.write(b"tick!")
         self.ticker = reactor.callLater(1, self.tick)
     
     def connectionLost(self, reason=None):
@@ -104,7 +104,7 @@ class Amplify(protocol.Protocol):
     def dataReceived(self, data):
         length = int(data)
         length = length if length > 0 and length < 19 else 1
-        self.transport.write("x" * 2**length)
+        self.transport.write(b"x" * 2**length)
 
 class AmplifyFactory(protocol.Factory):
     protocol = Amplify
@@ -131,13 +131,13 @@ amplify = AmplifyFactory()
 broadcast = BroadcastFactory()
 
 sockjs_root = resource.Resource()
-sockjs_root.putChild("echo", SockJSResource(echo, {'streaming_limit': 4 * 1024}))
-sockjs_root.putChild("disabled_websocket_echo", SockJSResource(echo, {'websocket': False}))
-sockjs_root.putChild("cookie_needed_echo", SockJSResource(echo, {'cookie_needed': True}))
-sockjs_root.putChild("close", SockJSResource(close))
-sockjs_root.putChild("ticker", SockJSResource(ticker))
-sockjs_root.putChild("amplify", SockJSResource(amplify))
-sockjs_root.putChild("broadcast", SockJSResource(broadcast))
+sockjs_root.putChild(b"echo", SockJSResource(echo, {'streaming_limit': 4 * 1024}))
+sockjs_root.putChild(b"disabled_websocket_echo", SockJSResource(echo, {'websocket': False}))
+sockjs_root.putChild(b"cookie_needed_echo", SockJSResource(echo, {'cookie_needed': True}))
+sockjs_root.putChild(b"close", SockJSResource(close))
+sockjs_root.putChild(b"ticker", SockJSResource(ticker))
+sockjs_root.putChild(b"amplify", SockJSResource(amplify))
+sockjs_root.putChild(b"broadcast", SockJSResource(broadcast))
 sockjs = server.Site(sockjs_root)
 
 

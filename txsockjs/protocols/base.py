@@ -40,23 +40,24 @@ class StubResource(resource.Resource, ProtocolWrapper):
         self.putChild("", self)
     
     def render_OPTIONS(self, request):
-        method = "POST" if getattr(self, "render_POST", None) is not None else "GET"
+        method = b"POST" if getattr(self, "render_POST", None) is not None else b"GET"
         request.setResponseCode(http.NO_CONTENT)
         self.parent.setBaseHeaders(request,False)
-        request.setHeader('Cache-Control', 'public, max-age=31536000')
-        request.setHeader('access-control-max-age', '31536000')
-        request.setHeader('Expires', 'Fri, 01 Jan 2500 00:00:00 GMT') #Get a new library by then
-        request.setHeader('Access-Control-Allow-Methods', 'OPTIONS, {0}'.format(method)) # Hardcoding this may be bad?
-        return ""
+        request.setHeader(b'Cache-Control', b'public, max-age=31536000')
+        request.setHeader(b'access-control-max-age', b'31536000')
+        request.setHeader(b'Expires', b'Fri, 01 Jan 2500 00:00:00 GMT') #Get a new library by then
+        request.setHeader(b'Access-Control-Allow-Methods', b'OPTIONS, ' + method) # Hardcoding this may be bad?
+        return b""
     
     def connect(self, request):
         if self.session.attached:
-            return 'c[2010,"Another connection still open"]\n'
+            return b'c[2010,"Another connection still open"]\n'
         self.request = request
         directlyProvides(self, providedBy(request.transport))
         protocol.Protocol.makeConnection(self, request.transport)
         self.session.makeConnection(self)
-        request.notifyFinish().addErrback(self.connectionLost)
+        if not request.finished:
+            request.notifyFinish().addErrback(self.connectionLost)
         return server.NOT_DONE_YET
     
     def disconnect(self):
@@ -162,11 +163,11 @@ class Stub(ProtocolWrapper):
     def sendData(self):
         if self.transport:
             if self.connecting:
-                self.transport.write('o')
+                self.transport.write(b'o')
                 self.connecting = False
                 self.sendData()
             elif self.disconnecting:
-                self.transport.write('c[3000,"Go away!"]')
+                self.transport.write(b'c[3000,"Go away!"]')
                 if self.transport:
                     self.transport.loseConnection()
             else:
@@ -178,7 +179,8 @@ class Stub(ProtocolWrapper):
     
     def flushData(self):
         if self.buffer:
-            data = 'a{0}'.format(json.dumps(self.buffer, separators=(',',':')))
+            data = b'a' + json.dumps(
+                self.buffer, separators=(',', ':')).encode('ascii')
             self.buffer = []
             self.pending.append(data)
     
@@ -189,16 +191,22 @@ class Stub(ProtocolWrapper):
     def dataReceived(self, data):
         if self.timeout.active():
             self.timeout.reset(5)
-        if data == '':
+        if not data:
             return "Payload expected."
         try:
-            packets = json.loads(data)
-            for p in packets:
-                p = normalize(p, self.parent._options['encoding'])
-                if self.protocol:
-                    self.protocol.dataReceived(p)
+            packets = json.loads(data.decode('utf-8'))
+            protocol = self.protocol
+            if protocol:
+                if hasattr(protocol, 'stringReceived'):
+                    # The protocol accepts text strings.
+                    for p in packets:
+                        protocol.stringReceived(p)
+                else:
+                    # The protocol accepts bytes only.
+                    for p in packets:
+                        protocol.dataReceived(p.encode('utf-8'))
             return None
-        except ValueError:
+        except (ValueError, UnicodeDecodeError):
             return "Broken JSON encoding."
         
     def getPeer(self):

@@ -23,25 +23,41 @@
 # OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
 # OF THE POSSIBILITY OF SUCH DAMAGE.
 
+from six import string_types, binary_type, text_type, PY3
 import json
 
+
 def normalize(s, encoding):
-    if not isinstance(s, basestring):
+    """Return a str or unicode ready to be encoded in JSON.
+    """
+    if PY3:
+        if isinstance(s, binary_type):
+            return s.decode('utf-8')
+        return str(s)
+
+    if not isinstance(s, string_types):
         try:
             return str(s)
         except UnicodeEncodeError:
-            return unicode(s).encode('utf-8','backslashreplace')
-    elif isinstance(s, unicode):
+            return text_type(s).encode('utf-8', 'backslashreplace')
+    elif isinstance(s, text_type):
         return s.encode('utf-8', 'backslashreplace')
     else:
-        if s.decode('utf-8', 'ignore').encode('utf-8', 'ignore') == s: # Ensure s is a valid UTF-8 string
+        # s is a bytes object.
+        # Ensure s is a valid UTF-8 string.
+        if s.decode('utf-8', 'ignore').encode('utf-8', 'ignore') == s:
             return s
-        else: # Otherwise assume it is Windows 1252
-            return s.decode(encoding, 'replace').encode('utf-8', 'backslashreplace')
+        else:
+            # Otherwise assume it is the default encoding.
+            return s.decode(encoding, 'replace').encode(
+                'utf-8', 'backslashreplace')
 
-def broadcast(message, targets, encoding="cp1252"):
+
+def broadcast(message, targets, encoding="latin-1"):
     message = normalize(message, encoding)
-    json_msg = 'a{0}'.format(json.dumps([message], separators=(',',':')))
+    json_msg = (
+        'a{0}'.format(json.dumps([message], separators=(',', ':')))
+        .encode('ascii'))
     for t in targets:
         if getattr(t, "writeRaw", None) is not None:
             t.writeRaw(json_msg)
