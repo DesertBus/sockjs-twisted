@@ -79,12 +79,19 @@ class JsonProtocol(PeerOverrideProtocol):
         if not data:
             return
         try:
-            dat = json.loads(data.decode('utf-8'))
+            packets = json.loads(data.decode('utf-8'))
         except ValueError:
             self.transport.loseConnection()
         else:
-            for d in dat:
-                ProtocolWrapper.dataReceived(self, d.encode('utf-8'))
+            protocol = self.wrappedProtocol
+            if hasattr(protocol, 'stringReceived'):
+                # The protocol accepts text strings.
+                for p in packets:
+                    protocol.stringReceived(p)
+            else:
+                # The protocol accepts bytes only.
+                for p in packets:
+                    protocol.dataReceived(p.encode('utf-8'))
 
     def heartbeat(self):
         self.transport.write(b'h')

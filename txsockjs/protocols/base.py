@@ -195,9 +195,16 @@ class Stub(ProtocolWrapper):
             return "Payload expected."
         try:
             packets = json.loads(data.decode('utf-8'))
-            if self.protocol:
-                for p in packets:
-                    self.protocol.dataReceived(p.encode('utf-8'))
+            protocol = self.protocol
+            if protocol:
+                if hasattr(protocol, 'stringReceived'):
+                    # The protocol accepts text strings.
+                    for p in packets:
+                        protocol.stringReceived(p)
+                else:
+                    # The protocol accepts bytes only.
+                    for p in packets:
+                        protocol.dataReceived(p.encode('utf-8'))
             return None
         except (ValueError, UnicodeDecodeError):
             return "Broken JSON encoding."
